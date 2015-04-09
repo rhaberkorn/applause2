@@ -70,16 +70,38 @@ function Stream:map(fnc)
 	return MapStream:new(self, fnc)
 end
 
-function Stream:ceil()  return self:map(math.ceil) end
-function Stream:cos()   return self:map(math.cos) end
-function Stream:cosh()  return self:map(math.cosh) end
-function Stream:exp()   return self:map(math.exp) end
-function Stream:floor() return self:map(math.floor) end
-function Stream:sin()   return self:map(math.sin) end
-function Stream:sinh()  return self:map(math.sinh) end
-function Stream:sqrt()  return self:map(math.sqrt) end
-function Stream:tan()   return self:map(math.tan) end
-function Stream:tanh()  return self:map(math.tanh) end
+-- Register all unary functions from the math package
+-- as stream operations/methods (creates a stream that calls
+-- the function on every sample)
+for _, fnc in pairs{"abs", "acos", "asin", "atan",
+                    "ceil", "cos", "cosh", "deg",
+                    "exp", "floor", "log", "log10",
+                    "rad", "sin", "sinh", "sqrt",
+                    "tan", "tanh"} do
+	Stream[fnc] = function(self)
+		return self:map(math[fnc])
+	end
+end
+
+function Stream:clip(min, max)
+	min = min or -1
+	max = max or 1
+
+	return self:map(function(x)
+		return math.min(math.max(x, min), max)
+	end)
+end
+
+-- Scale [-1,+1] signal to [lower,upper]
+-- lower is optional and defaults to 0
+function Stream:scale(v1, v2)
+	local lower = v2 and v1 or 0
+	local upper = v2 or v1
+
+	-- return (self + 1)*(0.5 * (upper - lower)) + lower
+	-- This requires less streams and is thus faster:
+	return self*((upper - lower)/2) + ((upper + lower)/2)
+end
 
 function Stream:scan(fnc)
 	return ScanStream:new(self, fnc)
@@ -99,6 +121,11 @@ end
 -- with invoking the __len metamethod (# operator).
 function Stream:len()
 	return math.huge -- infinity
+end
+
+-- implemented in applause.c
+function Stream:play()
+	error("C function not registered!")
 end
 
 -- Stream metamethods
@@ -507,6 +534,14 @@ function FoldStream:len()
 	return self.stream:len() > 0 and 1 or 0
 end
 
+NoiseStream = DeriveClass(Stream)
+
+function NoiseStream:tick()
+	return function()
+		return math.random()*2 - 1
+	end
+end
+
 -- primitives
 
 function tostream(v)
@@ -522,14 +557,14 @@ end
 function iota(...) return IotaStream:new(...) end
 
 -- Sample rate
--- FIXME: Get this from sound backend
+-- This is overwritten by the C core
 samplerate = 44100
 
 -- Time units: Convert between time and sample numbers
 -- These are functions, so we can round the result
 -- automatically
-function secs(x) return math.floor(samplerate*x) end
-function msecs(x) return secs(x/1000) end
+function sec(x) return math.floor(samplerate*(x or 1)) end
+function msec(x) return secs((x or 1)/1000) end
 
 -- Wave forms
 function SawOsc(freq)
@@ -540,4 +575,10 @@ end
 
 function SinOsc(freq)
 	return (SawOsc(freq)*(2*math.pi)):sin()
+end
+
+function PulseOsc(freq)
+	return SawOsc(freq):map(function(x)
+		return x > 0.5 and 1 or 0
+	end)
 end
