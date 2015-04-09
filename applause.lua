@@ -564,7 +564,7 @@ samplerate = 44100
 -- These are functions, so we can round the result
 -- automatically
 function sec(x) return math.floor(samplerate*(x or 1)) end
-function msec(x) return secs((x or 1)/1000) end
+function msec(x) return sec((x or 1)/1000) end
 
 -- Wave forms
 function SawOsc(freq)
