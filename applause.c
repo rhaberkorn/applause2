@@ -169,6 +169,14 @@ l_Stream_play(lua_State *L)
 	/* the tick generator function should now be on top of the stack */
 	luaL_checktype(L, -1, LUA_TFUNCTION);
 
+	/*
+	 * Perform garbage collection cycle and turn it off
+	 * temporarily. This improves the realtime properties
+	 * of the sample generation loop below.
+	 */
+	lua_gc(L, LUA_GCCOLLECT, 0);
+	lua_gc(L, LUA_GCSTOP, 0);
+
 	for (;;) {
 		jack_default_audio_sample_t sample;
 
@@ -183,7 +191,12 @@ l_Stream_play(lua_State *L)
 			break;
 
 		/* copy sample into ring buffer */
-		sample = (jack_default_audio_sample_t)luaL_checknumber(L, -1);
+		/*
+		 * FIXME: What if sample isn't a number. This
+		 * should be handled. But don't forget to restart
+		 * the garbage collector
+		 */
+		sample = (jack_default_audio_sample_t)lua_tonumber(L, -1);
 		/*
 		 * FIXME: Buffer may be full -- perhaps we should wait on a
 		 * semaphore
@@ -193,6 +206,8 @@ l_Stream_play(lua_State *L)
 		/* pop sample, the function dup has already been popped */
 		lua_pop(L, 1);
 	}
+
+	lua_gc(L, LUA_GCRESTART, 0);
 
 	/* any remaining stack elements are automatically popped */
 	return 0;
