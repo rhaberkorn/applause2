@@ -742,7 +742,10 @@ function LPFStream:tick()
 		-- calculate filter coefficients
 		-- avoid recalculation for constant frequencies
 		local freq = freq_tick()
-		if freq ~= cur_freq then
+		if freq == nil then
+			-- don't filter if we run out of frequency samples
+			return tick()
+		elseif freq ~= cur_freq then
 			cur_freq = freq
 
 			local pfreq = cur_freq * radians_per_sample * 0.5
@@ -796,7 +799,10 @@ function HPFStream:tick()
 		-- calculate filter coefficients
 		-- avoid recalculation for constant frequencies
 		local freq = freq_tick()
-		if freq ~= cur_freq then
+		if freq == nil then
+			-- don't filter if we run out of frequency samples
+			return tick()
+		elseif freq ~= cur_freq then
 			cur_freq = freq
 
 			local pfreq = cur_freq * radians_per_sample * 0.5
@@ -851,7 +857,10 @@ function BPFStream:tick()
 		-- calculate filter coefficients
 		-- avoid recalculation for constant frequencies
 		local freq = freq_tick()
-		if freq ~= cur_freq then
+		if freq == nil then
+			-- don't filter if we run out of frequency samples
+			return tick()
+		elseif freq ~= cur_freq then
 			cur_freq = freq
 
 			local pfreq = cur_freq * radians_per_sample
@@ -907,7 +916,10 @@ function BRFStream:tick()
 		-- calculate filter coefficients
 		-- avoid recalculation for constant frequencies
 		local freq = freq_tick()
-		if freq ~= cur_freq then
+		if freq == nil then
+			-- don't filter if we run out of frequency samples
+			return tick()
+		elseif freq ~= cur_freq then
 			cur_freq = freq
 
 			local pfreq = cur_freq * radians_per_sample
