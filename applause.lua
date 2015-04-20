@@ -12,6 +12,16 @@ function benchmark(fnc)
 	print("Elapsed CPU time: "..(t2_ms - t1_ms).."ms")
 end
 
+-- Sample rate
+-- This is overwritten by the C core
+samplerate = 44100
+
+-- Time units: Convert between time and sample numbers
+-- These are functions, so we can round the result
+-- automatically
+function sec(x) return math.floor(samplerate*(x or 1)) end
+function msec(x) return sec((x or 1)/1000) end
+
 function DeriveClass(base, ctor)
 	local class = {}
 
@@ -113,6 +123,69 @@ end
 
 function Stream:sub(i, j)
 	return SubStream:new(self, i, j)
+end
+
+--
+-- Wave forms with names derived from ChucK:
+-- Can be written freq:SawOsc() or Stream.SawOsc(freq)
+-- depending on the use case. The latter form may
+-- be useful for constant frequencies.
+--
+
+-- Ramp from 0 to 1
+function Stream.Phasor(freq)
+	return ScanStream:new(freq, function(accu, f)
+		return ((accu or 0) + f/samplerate) % 1
+	end)
+end
+
+-- Saw tooth wave from -1 to 1
+function Stream.SawOsc(freq)
+	return ScanStream:new(freq, function(accu, f)
+		return ((accu or 1) + 2*f/samplerate) % 2
+	end) - 1
+end
+
+function Stream.SinOsc(freq)
+	return (Stream.Phasor(freq)*(2*math.pi)):sin()
+end
+
+-- Pulse between 0 and 1 in half a period (width = 0.5)
+function Stream.PulseOsc(freq)
+	return Stream.Phasor(freq):map(function(x)
+		return x < 0.5 and 1 or 0
+	end)
+end
+
+function Stream.SqrOsc(freq)
+	return Stream.Phasor(freq):map(function(x)
+		return x < 0.5 and 1 or -1
+	end)
+end
+
+function Stream.TriOsc(freq)
+	return Stream.SawOsc(freq):abs()*2 - 1
+end
+
+--
+-- Filter shortcuts.
+-- They have their own classes
+--
+
+function Stream:LPF(freq)
+	return LPFStream:new(self, freq)
+end
+
+function Stream:HPF(freq)
+	return HPFStream:new(self, freq)
+end
+
+function Stream:BPF(freq, quality)
+	return BPFStream:new(self, freq, quality)
+end
+
+function Stream:BRF(freq, quality)
+	return BRFStream:new(self, freq, quality)
 end
 
 -- The len() method is the main way to get a stream's
@@ -556,29 +629,310 @@ end
 
 function iota(...) return IotaStream:new(...) end
 
--- Sample rate
--- This is overwritten by the C core
-samplerate = 44100
+--
+-- Filters
+--
 
--- Time units: Convert between time and sample numbers
--- These are functions, so we can round the result
--- automatically
-function sec(x) return math.floor(samplerate*(x or 1)) end
-function msec(x) return sec((x or 1)/1000) end
+--[==[
+--
+-- Non-working FIR filters (FIXME)
+--
 
--- Wave forms
-function SawOsc(freq)
-	return ScanStream:new(freq, function(accu, f)
-		return ((accu or 0) + f/samplerate) % 1
-	end)
+-- Normalized Sinc function
+local function Sinc(x)
+	return x == 0 and 1 or
+	       math.sin(2*math.pi*x)/(2*math.pi*x)
 end
 
-function SinOsc(freq)
-	return (SawOsc(freq)*(2*math.pi)):sin()
+local function Hamming(n, window)
+	local alpha = 0.54
+	return alpha - (1-alpha)*math.cos((2*math.pi*n)/(window-1))
+end
+local function Blackman(n, window)
+	local alpha = 0.16
+	return (1-alpha)/2 -
+	       0.5*math.cos((2*math.pi*n)/(window-1)) +
+	       alpha*0.5*math.cos((4*math.pi*n)/(window-1))
 end
 
-function PulseOsc(freq)
-	return SawOsc(freq):map(function(x)
-		return x > 0.5 and 1 or 0
-	end)
+FIRStream = DeriveClass(Stream, function(self, stream, freq_stream)
+	self.stream = tostream(stream)
+	self.freq_stream = tostream(freq_stream)
+end)
+
+function FIRStream:tick()
+	local window = {}
+
+	-- window size (max. 1024 samples)
+	-- this is the max. latency introduced by the filter
+	-- since the window must be filled before we can generate
+	-- (filtered) samples
+	local window_size = math.min(1024, self.stream:len())
+	local window_p = window_size-1
+	local accu = 0
+
+	local blackman = {}
+	for i = 1, window_size do blackman[i] = Blackman(i-1, window_size) end
+
+	local tick = self.stream:tick()
+	local freq_tick = self.freq_stream:tick()
+
+	return function()
+		-- fill buffer (initial)
+		while #window < window_size-1 do
+			table.insert(window, tick())
+		end
+
+		window[window_p+1] = tick()
+		window_p = (window_p + 1) % window_size
+
+		local period = freq_tick()/samplerate
+
+		local sample = 0
+		local i = window_p
+		repeat
+			-- FIXME
+			sample = sample + window[(i % window_size)+1] *
+			         Sinc((i-window_p - window_size/2)/period) *
+			         blackman[i-window_p+1]
+			i = i + 1
+		until (i % window_size) == window_p
+
+		return sample
+	end
+end
+
+function FIRStream:len()
+	return self.stream:len()
+end
+]==]
+
+--
+-- General-purpose IIR filters:
+-- These are direct translations of ChucK's LPF, HPF, BPF and BRF
+-- ugens which are in turn adapted from SuperCollider 3.
+--
+
+-- De-denormalize function adapted from ChucK.
+-- Not quite sure why this is needed - properly to make the
+-- IIR filters numerically more stable.
+local function ddn(f)
+	return f >= 0 and (f > 1e-15 and f < 1e15 and f or 0) or
+	                  (f < -1e-15 and f > -1e15 and f or 0)
+end
+
+LPFStream = DeriveClass(Stream, function(self, stream, freq)
+	self.stream = tostream(stream)
+	self.freq_stream = tostream(freq)
+end)
+
+function LPFStream:tick()
+	local a0, b1, b2
+	local y1, y2 = 0, 0
+
+	-- some cached constants
+	local radians_per_sample = (2*math.pi)/samplerate
+	local sqrt2 = math.sqrt(2)
+
+	local tick = self.stream:tick()
+	local freq_tick = self.freq_stream:tick()
+	local cur_freq = nil
+
+	return function()
+		-- calculate filter coefficients
+		-- avoid recalculation for constant frequencies
+		local freq = freq_tick()
+		if freq ~= cur_freq then
+			cur_freq = freq
+
+			local pfreq = cur_freq * radians_per_sample * 0.5
+
+			local C = 1/math.tan(pfreq)
+			local C2 = C*C
+			local sqrt2C = C * sqrt2
+
+			a0 = 1/(1 + sqrt2C + C2)
+			b1 = -2.0 * (1.0 - C2) * a0
+			b2 = -(1.0 - sqrt2C + C2) * a0
+		end
+
+		local sample = tick()
+
+		local y0 = sample + b1*y1 + b2*y2
+		local result = a0 * (y0 + 2*y1 + y2)
+
+		y2 = ddn(y1)
+		y1 = ddn(y0)
+
+		return result
+	end
+end
+
+function LPFStream:len()
+	return self.stream:len()
+end
+
+HPFStream = DeriveClass(Stream, function(self, stream, freq)
+	self.stream = tostream(stream)
+	self.freq_stream = tostream(freq)
+end)
+
+function HPFStream:tick()
+	local a0, b1, b2
+	local y1, y2 = 0, 0
+
+	-- some cached constants
+	local radians_per_sample = (2*math.pi)/samplerate
+	local sqrt2 = math.sqrt(2)
+
+	local tick = self.stream:tick()
+	local freq_tick = self.freq_stream:tick()
+	local cur_freq = nil
+
+	-- NOTE: Very similar to LPFStream.tick()
+	-- Can we factor out the similarity without sacrificing
+	-- too much performance?
+	return function()
+		-- calculate filter coefficients
+		-- avoid recalculation for constant frequencies
+		local freq = freq_tick()
+		if freq ~= cur_freq then
+			cur_freq = freq
+
+			local pfreq = cur_freq * radians_per_sample * 0.5
+
+			local C = math.tan(pfreq)
+			local C2 = C*C
+			local sqrt2C = C * sqrt2
+
+			a0 = 1/(1 + sqrt2C + C2)
+			b1 = 2.0 * (1.0 - C2) * a0
+			b2 = -(1.0 - sqrt2C + C2) * a0
+		end
+
+		local sample = tick()
+
+		local y0 = sample + b1*y1 + b2*y2
+		local result = a0 * (y0 - 2*y1 + y2)
+
+		y2 = ddn(y1)
+		y1 = ddn(y0)
+
+		return result
+	end
+end
+
+function HPFStream:len()
+	return self.stream:len()
+end
+
+-- NOTE: The quality factor, indirectly proportional
+-- to the passband width
+BPFStream = DeriveClass(Stream, function(self, stream, freq, quality)
+	self.stream = tostream(stream)
+	self.freq_stream = tostream(freq)
+	-- FIXME: Does this make sense to be a stream?
+	self.quality = quality
+end)
+
+function BPFStream:tick()
+	local a0, b1, b2
+	local y1, y2 = 0, 0
+
+	-- some cached constants
+	local radians_per_sample = (2*math.pi)/samplerate
+	local sqrt2 = math.sqrt(2)
+
+	local tick = self.stream:tick()
+	local freq_tick = self.freq_stream:tick()
+	local cur_freq = nil
+
+	return function()
+		-- calculate filter coefficients
+		-- avoid recalculation for constant frequencies
+		local freq = freq_tick()
+		if freq ~= cur_freq then
+			cur_freq = freq
+
+			local pfreq = cur_freq * radians_per_sample
+			local pbw = 1 / self.quality*pfreq*0.5
+
+			local C = 1/math.tan(pbw)
+			local D = 2*math.cos(pfreq);
+
+			a0 = 1/(1 + C)
+			b1 = C*D*a0
+			b2 = (1 - C)*a0
+		end
+
+		local sample = tick()
+
+		local y0 = sample + b1*y1 + b2*y2
+		local result = a0 * (y0 - y2)
+
+		y2 = ddn(y1)
+		y1 = ddn(y0)
+
+		return result
+	end
+end
+
+function BPFStream:len()
+	return self.stream:len()
+end
+
+-- NOTE: The quality factor, indirectly proportional
+-- to the passband width
+BRFStream = DeriveClass(Stream, function(self, stream, freq, quality)
+	self.stream = tostream(stream)
+	self.freq_stream = tostream(freq)
+	-- FIXME: Does this make sense to be a stream?
+	self.quality = quality
+end)
+
+function BRFStream:tick()
+	local a0, b1, b2
+	local y1, y2 = 0, 0
+
+	-- some cached constants
+	local radians_per_sample = (2*math.pi)/samplerate
+	local sqrt2 = math.sqrt(2)
+
+	local tick = self.stream:tick()
+	local freq_tick = self.freq_stream:tick()
+	local cur_freq = nil
+
+	-- NOTE: Very similar to BPFStream.tick()
+	return function()
+		-- calculate filter coefficients
+		-- avoid recalculation for constant frequencies
+		local freq = freq_tick()
+		if freq ~= cur_freq then
+			cur_freq = freq
+
+			local pfreq = cur_freq * radians_per_sample
+			local pbw = 1 / self.quality*pfreq*0.5
+
+			local C = math.tan(pbw)
+			local D = 2*math.cos(pfreq);
+
+			a0 = 1/(1 + C)
+			b1 = -D*a0
+			b2 = (1 - C)*a0
+		end
+
+		local sample = tick()
+
+		local y0 = sample - b1*y1 - b2*y2
+		local result = a0 * (y0 + y2) + b1*y1
+
+		y2 = ddn(y1)
+		y1 = ddn(y0)
+
+		return result
+	end
+end
+
+function BRFStream:len()
+	return self.stream:len()
 end
