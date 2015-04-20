@@ -739,13 +739,15 @@ function LPFStream:tick()
 	local cur_freq = nil
 
 	return function()
-		-- calculate filter coefficients
-		-- avoid recalculation for constant frequencies
+		local sample = tick()
 		local freq = freq_tick()
-		if freq == nil then
+
+		if sample == nil or freq == nil then
 			-- don't filter if we run out of frequency samples
-			return tick()
+			return sample
 		elseif freq ~= cur_freq then
+			-- calculate filter coefficients
+			-- avoid recalculation for constant frequencies
 			cur_freq = freq
 
 			local pfreq = cur_freq * radians_per_sample * 0.5
@@ -758,8 +760,6 @@ function LPFStream:tick()
 			b1 = -2.0 * (1.0 - C2) * a0
 			b2 = -(1.0 - sqrt2C + C2) * a0
 		end
-
-		local sample = tick()
 
 		local y0 = sample + b1*y1 + b2*y2
 		local result = a0 * (y0 + 2*y1 + y2)
@@ -796,13 +796,15 @@ function HPFStream:tick()
 	-- Can we factor out the similarity without sacrificing
 	-- too much performance?
 	return function()
-		-- calculate filter coefficients
-		-- avoid recalculation for constant frequencies
+		local sample = tick()
 		local freq = freq_tick()
-		if freq == nil then
+
+		if sample == nil or freq == nil then
 			-- don't filter if we run out of frequency samples
-			return tick()
+			return sample
 		elseif freq ~= cur_freq then
+			-- calculate filter coefficients
+			-- avoid recalculation for constant frequencies
 			cur_freq = freq
 
 			local pfreq = cur_freq * radians_per_sample * 0.5
@@ -854,13 +856,15 @@ function BPFStream:tick()
 	local cur_freq = nil
 
 	return function()
-		-- calculate filter coefficients
-		-- avoid recalculation for constant frequencies
+		local sample = tick()
 		local freq = freq_tick()
-		if freq == nil then
+
+		if sample == nil or freq == nil then
 			-- don't filter if we run out of frequency samples
-			return tick()
+			return sample
 		elseif freq ~= cur_freq then
+			-- calculate filter coefficients
+			-- avoid recalculation for constant frequencies
 			cur_freq = freq
 
 			local pfreq = cur_freq * radians_per_sample
@@ -913,13 +917,15 @@ function BRFStream:tick()
 
 	-- NOTE: Very similar to BPFStream.tick()
 	return function()
-		-- calculate filter coefficients
-		-- avoid recalculation for constant frequencies
+		local sample = tick()
 		local freq = freq_tick()
-		if freq == nil then
+
+		if sample == nil or freq == nil then
 			-- don't filter if we run out of frequency samples
-			return tick()
+			return sample
 		elseif freq ~= cur_freq then
+			-- calculate filter coefficients
+			-- avoid recalculation for constant frequencies
 			cur_freq = freq
 
 			local pfreq = cur_freq * radians_per_sample
