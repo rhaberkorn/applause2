@@ -125,6 +125,14 @@ function Stream:sub(i, j)
 	return SubStream:new(self, i, j)
 end
 
+-- This is a linear resampler thanks to the
+-- semantics of __index
+function Stream:resample(factor)
+	-- FIXME: Mul should not make the stream infinite
+	local points = math.floor(self:len() * factor)
+	return self[iota(points) * Stream:new(1/factor):sub(1, points)]
+end
+
 --
 -- Wave forms with names derived from ChucK:
 -- Can be written freq:SawOsc() or Stream.SawOsc(freq)
@@ -205,6 +213,47 @@ end
 -- implemented in applause.c
 function Stream:play()
 	error("C function not registered!")
+end
+
+function Stream:toplot(rows, cols)
+	rows = rows or 25
+	cols = cols or 80
+
+	-- FIXME: sub() should not be necessary since operations
+	-- should not make stream infinite
+	local scaled = ((self:resample(cols / self:len()) + 1)*(rows/2)):floor():sub(1, cols)()
+	local plot = {}
+
+	for i = 1, #scaled do
+		plot[i] = {}
+		for j = 1, rows do plot[i][j] = " " end
+
+		-- middle line (represents 0)
+		plot[i][math.ceil(rows/2)] = "-"
+
+		plot[i][scaled[i]] = "+" -- data point
+
+		-- connect with last data point
+		if i > 1 then
+			if scaled[i-1] < scaled[i] then
+				for j = scaled[i-1]+1, scaled[i]-1 do
+					plot[i][j] = "|"
+				end
+			elseif scaled[i-1] > scaled[i] then
+				for j = scaled[i-1]-1, scaled[i]+1, -1 do
+					plot[i][j] = "|"
+				end
+			end
+		end
+	end
+
+	local str = ""
+	for j = rows, 1, -1 do
+		for i = 1, cols do str = str..plot[i][j] end
+		str = str.."\n"
+	end
+
+	return str
 end
 
 -- Stream metamethods
