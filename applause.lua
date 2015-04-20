@@ -188,6 +188,12 @@ function Stream:BRF(freq, quality)
 	return BRFStream:new(self, freq, quality)
 end
 
+-- Bit crusher effect
+function Stream:crush(bits)
+	bits = bits or 8
+	return (self * (2^bits) + 0.5):floor() * (1/2^bits)
+end
+
 -- The len() method is the main way to get a stream's
 -- length (at least in this code) and classes should overwrite
 -- this method since LuaJIT has problems
