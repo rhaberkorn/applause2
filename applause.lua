@@ -31,7 +31,8 @@ function DeriveClass(base, ctor)
 		-- we cannot derive metamethod tables, so we
 		-- copy all relevant metamethods
 		for _, m in pairs{"len", "call", "tostring",
-		                  "unm", "add", "sub", "mul", "div",
+		                  "add", "sub", "mul", "div",
+		                  "mod", "pow", "unm",
 		                  "concat", "lt", "le"} do
 			class["__"..m] = base["__"..m]
 		end
@@ -93,12 +94,44 @@ for _, fnc in pairs{"abs", "acos", "asin", "atan",
 	end
 end
 
+-- Scalar operations
+-- In contrast to stream operations (based on ZipStream),
+-- these work only with scalars and do not
+-- extend the stream length
+function Stream:add(n)
+	return self:map(function(x) return x+n end)
+end
+
+function Stream:sub(n)
+	return self:map(function(x) return x-n end)
+end
+
+function Stream:mul(n)
+	return self:map(function(x) return x*n end)
+end
+Stream.gain = Stream.mul
+
+function Stream:div(n)
+	return self:map(function(x) return x/n end)
+end
+
+function Stream:mod(n)
+	return self:map(function(x) return x%n end)
+end
+
+function Stream:pow(n)
+	return self:map(function(x) return x^n end)
+end
+
 function Stream:clip(min, max)
 	min = min or -1
 	max = max or 1
 
+	local math_min = math.min
+	local math_max = math.max
+
 	return self:map(function(x)
-		return math.min(math.max(x, min), max)
+		return math_min(math_max(x, min), max)
 	end)
 end
 
@@ -108,9 +141,9 @@ function Stream:scale(v1, v2)
 	local lower = v2 and v1 or 0
 	local upper = v2 or v1
 
-	-- return (self + 1)*(0.5 * (upper - lower)) + lower
-	-- This requires less streams and is thus faster:
-	return self*((upper - lower)/2) + ((upper + lower)/2)
+	return self:map(function(x)
+		return (x + 1)*(upper - lower)/2 + lower
+	end)
 end
 
 function Stream:scan(fnc)
@@ -121,6 +154,10 @@ function Stream:fold(fnc)
 	return FoldStream:new(self, fnc)
 end
 
+function Stream:zip(fnc, ...)
+	return ZipStream:new(fnc, self, ...)
+end
+
 function Stream:sub(i, j)
 	return SubStream:new(self, i, j)
 end
@@ -128,9 +165,7 @@ end
 -- This is a linear resampler thanks to the
 -- semantics of __index
 function Stream:resample(factor)
-	-- FIXME: Mul should not make the stream infinite
-	local points = math.floor(self:len() * factor)
-	return self[iota(points) * Stream:new(1/factor):sub(1, points)]
+	return self[iota(math.floor(self:len() * factor)):div(factor)]
 end
 
 --
@@ -151,11 +186,11 @@ end
 function Stream.SawOsc(freq)
 	return ScanStream:new(freq, function(accu, f)
 		return ((accu or 1) + 2*f/samplerate) % 2
-	end) - 1
+	end):sub(1)
 end
 
 function Stream.SinOsc(freq)
-	return (Stream.Phasor(freq)*(2*math.pi)):sin()
+	return Stream.Phasor(freq):mul(2*math.pi):sin()
 end
 
 -- Pulse between 0 and 1 in half a period (width = 0.5)
@@ -172,7 +207,11 @@ function Stream.SqrOsc(freq)
 end
 
 function Stream.TriOsc(freq)
-	return Stream.SawOsc(freq):abs()*2 - 1
+	local abs = math.abs
+
+	return Stream.SawOsc(freq):map(function(x)
+		return abs(x)*2 - 1
+	end)
 end
 
 --
@@ -199,7 +238,11 @@ end
 -- Bit crusher effect
 function Stream:crush(bits)
 	bits = bits or 8
-	return (self * (2^bits) + 0.5):floor() * (1/2^bits)
+	local floor = math.floor
+
+	return self:map(function(x)
+		return floor(x * 2^bits + 0.5) / 2^bits
+	end)
 end
 
 -- The len() method is the main way to get a stream's
@@ -219,9 +262,8 @@ function Stream:toplot(rows, cols)
 	rows = rows or 25
 	cols = cols or 80
 
-	-- FIXME: sub() should not be necessary since operations
-	-- should not make stream infinite
-	local scaled = ((self:resample(cols / self:len()) + 1)*(rows/2)):floor():sub(1, cols)()
+	local scaled = self:resample(cols / self:len())
+	                   :add(1):mul(rows/2):floor()()
 	local plot = {}
 
 	for i = 1, #scaled do
@@ -261,7 +303,9 @@ end
 function Stream:__len()	return self:len() end
 
 function Stream:__call()
-	if self:len() == math.huge then error("Cannot serialize infinite stream") end
+	if self:len() == math.huge then
+		error("Cannot serialize infinite stream")
+	end
 
 	local tick = self:tick()
 	local vector = {}
@@ -284,34 +328,43 @@ function Stream:__tostring()
 	end
 end
 
-function Stream:__unm()
-	-- should be efficient enough,
-	-- no need to implemenent a NegateStream and
-	-- certainly better than MulStream:new(self, -1)
-	return self:map(function(x) return -x end)
-end
-
 function Stream.__add(op1, op2)
-	return AddStream:new(op1, op2)
+	return ZipStream:new(function(x1, x2)
+		return x1+x2
+	end, op1, op2)
 end
 
 function Stream.__sub(op1, op2)
-	-- FIXME: May be made more efficient if we use
-	-- a higher order stream composition
-	return AddStream:new(op1, -tostream(op2))
+	return ZipStream:new(function(x1, x2)
+		return x1-x2
+	end, op1, op2)
 end
 
 function Stream.__mul(op1, op2)
-	return MulStream:new(op1, op2)
+	return ZipStream:new(function(x1, x2)
+		return x1*x2
+	end, op1, op2)
 end
 
 function Stream.__div(op1, op2)
-	-- FIXME: May be made more efficient if we use
-	-- a higher order stream composition
-	return MulStream:new(op1, MapStream:new(op2, function(x)
-		return 1/x
-	end))
+	return ZipStream:new(function(x1, x2)
+		return x1/x2
+	end, op1, op2)
 end
+
+function Stream.__mod(op1, op2)
+	return ZipStream:new(function(x1, x2)
+		return x1%x2
+	end, op1, op2)
+end
+
+function Stream.__pow(op1, op2)
+	return ZipStream:new(function(x1, x2)
+		return x1^x2
+	end, op1, op2)
+end
+
+function Stream:__unm()	return self:mul(-1) end
 
 function Stream.__concat(op1, op2)
 	return ConcatStream:new(op1, op2)
@@ -347,9 +400,19 @@ function VectorStream:len()
 end
 
 ConcatStream = DeriveClass(Stream, function(self, ...)
+	self.is_concatstream = true
+
 	self.streams = {}
-	for k, v in pairs{...} do
-		self.streams[k] = tostream(v)
+	for _, v in ipairs{...} do
+		if v.is_concatstream then
+			-- Optimization: Avoid redundant
+			-- ConcatStream objects
+			for _, s in ipairs(v.streams) do
+				table.insert(self.streams, s)
+			end
+		else
+			table.insert(self.streams, tostream(v))
+		end
 	end
 
 	-- all but the last stream must be finite
@@ -371,7 +434,7 @@ function ConcatStream:tick()
 	end
 
 	return function()
-		while i <= #self.streams do
+		while i <= #ticks do
 			local sample = ticks[i]()
 
 			if sample then return sample end
@@ -472,6 +535,11 @@ function IndexStream:tick()
 
 	local stream_len = self.stream:len()
 
+	-- avoid math table lookup at sample rate
+	local huge = math.huge
+	local floor = math.floor
+	local ceil = math.ceil
+
 	-- cache of samples generated by stream
 	local cache = {}
 
@@ -481,12 +549,12 @@ function IndexStream:tick()
 		if not index_sample then return end
 
 		if index_sample < 1 or index_sample > stream_len or
-		   index_sample == math.huge then
+		   index_sample == huge then
 			error("Index "..index_sample.." out of range")
 		end
 
-		local index_floor, index_ceil = math.floor(index_sample),
-		                                math.ceil(index_sample)
+		local index_floor, index_ceil = floor(index_sample),
+		                                ceil(index_sample)
 
 		while #cache < index_ceil do
 			table.insert(cache, stream_tick())
@@ -502,98 +570,6 @@ end
 
 function IndexStream:len()
 	return self.index_stream:len()
-end
-
--- FIXME: Perhaps AddStream and MulStream could be unified
--- into one higher order stream that applies a function to
--- a number of samples
-
-AddStream = DeriveClass(Stream, function(self, ...)
-	self.streams = {}
-	for k, v in pairs{...} do
-		self.streams[k] = tostream(v)
-	end
-end)
-
-function AddStream:tick()
-	local running = true
-	local ticks = {}
-
-	for i = 1, #self.streams do
-		ticks[i] = self.streams[i]:tick()
-	end
-
-	return function()
-		if not running then return end
-
-		local sum = 0
-
-		running = nil
-		for i = 1, #ticks do
-			local sample = ticks[i]()
-
-			if sample then
-				running = true
-				sum = sum + sample
-			end
-		end
-
-		return running and sum
-	end
-end
-
-function AddStream:len()
-	local max = 0
-
-	for _, stream in pairs(self.streams) do
-		max = math.max(max, stream:len())
-	end
-
-	return max
-end
-
-MulStream = DeriveClass(Stream, function(self, ...)
-	self.streams = {}
-	for k, v in pairs{...} do
-		self.streams[k] = tostream(v)
-	end
-end)
-
-function MulStream:tick()
-	local running = true
-	local ticks = {}
-
-	for i = 1, #self.streams do
-		ticks[i] = self.streams[i]:tick()
-	end
-
-	return function()
-		if not running then return end
-
-		local product = 1
-
-		running = nil
-		for i = 1, #ticks do
-			local sample = ticks[i]()
-
-			if sample then
-				running = true
-				product = product * sample
-			end
-		end
-
-		return running and product
-	end
-end
-
-function MulStream:len()
-	local max = 0
-
-	for _, stream in pairs(self.streams) do
-		max = math.max(max, stream:len())
-	end
-
-	return max
 end
 
 MapStream = DeriveClass(Stream, function(self, stream, fnc)
@@ -662,11 +638,94 @@ function FoldStream:len()
 	return self.stream:len() > 0 and 1 or 0
 end
 
+-- ZipStream combines any number of streams into a single
+-- stream using a function. This is the basis of the "+"
+-- and "*" operations.
+ZipStream = DeriveClass(Stream, function(self, fnc, ...)
+	self.is_zipstream = true
+
+	self.fnc = fnc
+
+	self.streams = {}
+	for _, v in ipairs{...} do
+		if v.is_zipstream and v.fnc == fnc then
+			-- Optimization: Avoid redundant
+			-- ZipStream objects
+			for _, s in ipairs(v.streams) do
+				table.insert(self.streams, s)
+			end
+		else
+			table.insert(self.streams, tostream(v))
+		end
+	end
+end)
+
+function ZipStream:tick()
+	local running = true
+	local ticks = {}
+
+	for i = 1, #self.streams do
+		ticks[i] = self.streams[i]:tick()
+	end
+
+	if #ticks == 2 then
+		-- 2 streams are common, so use an unrolled
+		-- version here
+		return function()
+			if not running then return end
+
+			local sample1, sample2 = ticks[1](), ticks[2]()
+
+			if not sample1 then
+				running = sample2
+				return sample2
+			elseif not sample2 then
+				-- have sample1, keep running
+				return sample1
+			end
+
+			return self.fnc(sample1, sample2)
+		end
+	else
+		return function()
+			if not running then return end
+
+			local result = nil
+
+			for i = 1, #ticks do
+				local sample = ticks[i]()
+
+				if sample then
+					result = result and self.fnc(result, sample)
+					                or sample
+				end
+			end
+
+			-- if all streams have ended, `result` will be nil
+			running = result
+
+			return result
+		end
+	end
+end
+
+function ZipStream:len()
+	local max = 0
+
+	for _, stream in pairs(self.streams) do
+		max = math.max(max, stream:len())
+	end
+
+	return max
+end
+
 NoiseStream = DeriveClass(Stream)
 
 function NoiseStream:tick()
+	local random = math.random
+
 	return function()
-		return math.random()*2 - 1
+		return random()*2 - 1
 	end
 end
 
@@ -789,6 +848,9 @@ function LPFStream:tick()
 	local radians_per_sample = (2*math.pi)/samplerate
 	local sqrt2 = math.sqrt(2)
 
+	-- some cached math table lookups
+	local tan = math.tan
+
 	local tick = self.stream:tick()
 	local freq_tick = self.freq_stream:tick()
 	local cur_freq = nil
@@ -807,7 +869,7 @@ function LPFStream:tick()
 
 			local pfreq = cur_freq * radians_per_sample * 0.5
 
-			local C = 1/math.tan(pfreq)
+			local C = 1/tan(pfreq)
 			local C2 = C*C
 			local sqrt2C = C * sqrt2
 
@@ -843,6 +905,9 @@ function HPFStream:tick()
 	local radians_per_sample = (2*math.pi)/samplerate
 	local sqrt2 = math.sqrt(2)
 
+	-- some cached math table lookups
+	local tan = math.tan
+
 	local tick = self.stream:tick()
 	local freq_tick = self.freq_stream:tick()
 	local cur_freq = nil
@@ -864,7 +929,7 @@ function HPFStream:tick()
 
 			local pfreq = cur_freq * radians_per_sample * 0.5
 
-			local C = math.tan(pfreq)
+			local C = tan(pfreq)
 			local C2 = C*C
 			local sqrt2C = C * sqrt2
 
@@ -906,6 +971,10 @@ function BPFStream:tick()
 	local radians_per_sample = (2*math.pi)/samplerate
 	local sqrt2 = math.sqrt(2)
 
+	-- some cached math table lookups
+	local tan = math.tan
+	local cos = math.cos
+
 	local tick = self.stream:tick()
 	local freq_tick = self.freq_stream:tick()
 	local cur_freq = nil
@@ -925,8 +994,8 @@ function BPFStream:tick()
 			local pfreq = cur_freq * radians_per_sample
 			local pbw = 1 / self.quality*pfreq*0.5
 
-			local C = 1/math.tan(pbw)
-			local D = 2*math.cos(pfreq);
+			local C = 1/tan(pbw)
+			local D = 2*cos(pfreq);
 
 			a0 = 1/(1 + C)
 			b1 = C*D*a0
@@ -966,6 +1035,10 @@ function BRFStream:tick()
 	local radians_per_sample = (2*math.pi)/samplerate
 	local sqrt2 = math.sqrt(2)
 
+	-- some cached math table lookups
+	local tan = math.tan
+	local cos = math.cos
+
 	local tick = self.stream:tick()
 	local freq_tick = self.freq_stream:tick()
 	local cur_freq = nil
@@ -986,8 +1059,8 @@ function BRFStream:tick()
 			local pfreq = cur_freq * radians_per_sample
 			local pbw = 1 / self.quality*pfreq*0.5
 
-			local C = math.tan(pbw)
-			local D = 2*math.cos(pfreq);
+			local C = tan(pbw)
+			local D = 2*cos(pfreq);
 
 			a0 = 1/(1 + C)
 			b1 = -D*a0
