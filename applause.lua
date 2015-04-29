@@ -162,6 +162,10 @@ function Stream:sub(i, j)
 	return SubStream:new(self, i, j)
 end
 
+function Stream:ravel()
+	return RavelStream:new(self)
+end
+
 -- This is a linear resampler thanks to the
 -- semantics of __index
 function Stream:resample(factor)
@@ -311,21 +315,28 @@ function Stream:__call()
 	local vector = {}
 
 	while true do
-		local sample = tick()
+		local value = tick()
 
-		if not sample then break end
-		table.insert(vector, sample)
+		if not value then break end
+		table.insert(vector, value)
 	end
 
 	return vector
 end
 
 function Stream:__tostring()
+	local t
+
 	if self:len() > 1024 then
-		return table.concat(self:sub(1, 1024)(), " ").."..."
+		t = self:sub(1, 1024)()
+		table.insert(t, "...")
 	else
-		return table.concat(self(), " ")
+		t = self()
 	end
+
+	for i = 1, #t do t[i] = tostring(t[i]) end
+
+	return "{"..table.concat(t, ", ").."}"
 end
 
 function Stream.__add(op1, op2)
@@ -373,6 +384,8 @@ end
 -- FIXME: Length comparisions can already be written
 -- elegantly - perhaps these operators should have
 -- more APLish semantics instead?
+-- However Lua practically demands these metamethods
+-- (as well as __eq) to return booleans.
 
 function Stream.__lt(op1, op2)
 	return op1:len() < op2:len()
@@ -451,6 +464,56 @@ function ConcatStream:len()
 	-- if last stream is infinite, len will also be infinite
 	for _, stream in pairs(self.streams) do
 		len = len + stream:len()
+	end
+
+	return len
+end
+
+-- Ravel operation inspired by APL.
+-- This removes one level of nesting from nested streams
+-- (e.g. streams of streams), and is semantically similar
+-- to folding the stream with the Concat operation.
+RavelStream = DeriveClass(Stream, function(self, stream)
+	self.stream = tostream(stream)
+end)
+
+function RavelStream:tick()
+	local stream_tick = self.stream:tick()
+	local current_tick = nil
+
+	return function()
+		while true do
+			if current_tick then
+				local value = current_tick()
+				if value then return value end
+				current_tick = nil
+			end
+
+			local value = stream_tick()
+
+			if type(value) == "table" and value.is_a_stream then
+				current_tick = value:tick()
+			else
+				return value
+			end
+		end
+	end
+end
+
+function RavelStream:len()
+	if self.stream:len() == math.huge then
+		-- FIXME: Actually, it is possible that the stream
+		-- is infinite but consists only of empty streams.
+		-- In this case, tick() will be stuck in an infinite loop...
+		return math.huge
+	end
+
+	local len = 0
+	local t = self.stream()
+
+	for i = 1, #t do
+		len = len + (type(t[i]) == "table" and t[i].is_a_stream and
+		             t[i]:len() or 1)
 	end
 
 	return len
