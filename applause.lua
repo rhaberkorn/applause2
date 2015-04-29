@@ -1,13 +1,41 @@
-posix = require "posix"
+local ffi = require "ffi"
+
+--
+-- Define C functions for benchmarking (POSIX libc)
+--
+ffi.cdef[[
+typedef long time_t;
+
+struct timespec {
+	time_t	tv_sec;        /* seconds */
+	long	tv_nsec;       /* nanoseconds */
+};
+
+typedef enum {
+	CLOCK_REALTIME =              0,
+	CLOCK_MONOTONIC =             1,
+	CLOCK_PROCESS_CPUTIME_ID =    2,
+	CLOCK_THREAD_CPUTIME_ID =     3,
+	CLOCK_MONOTONIC_RAW =         4,
+	CLOCK_REALTIME_COARSE =       5,
+	CLOCK_MONOTONIC_COARSE =      6,
+	CLOCK_BOOTTIME =              7
+} clockid_t;
+
+int clock_gettime(clockid_t clk_id, struct timespec *tp);
+]]
 
 -- measure time required to execute fnc()
 function benchmark(fnc)
-	local t1_s, t1_ns = posix.clock_gettime("process_cputime_id")
-	fnc()
-	local t2_s, t2_ns = posix.clock_gettime("process_cputime_id")
+	local t1 = ffi.new("struct timespec[1]")
+	local t2 = ffi.new("struct timespec[1]")
 
-	local t1_ms = t1_s*1000 + t1_ns/1000000
-	local t2_ms = t2_s*1000 + t2_ns/1000000
+	ffi.C.clock_gettime("CLOCK_PROCESS_CPUTIME_ID", t1)
+	fnc()
+	ffi.C.clock_gettime("CLOCK_PROCESS_CPUTIME_ID", t2)
+
+	local t1_ms = t1[0].tv_sec*1000 + t1[0].tv_nsec/1000000
+	local t2_ms = t2[0].tv_sec*1000 + t2[0].tv_nsec/1000000
 
 	print("Elapsed CPU time: "..(t2_ms - t1_ms).."ms")
 end
