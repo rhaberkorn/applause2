@@ -1,3 +1,4 @@
+local sndfile = require "sndfile"
 local ffi = require "ffi"
 
 --
@@ -290,6 +291,26 @@ function Stream:play()
 	error("C function not registered!")
 end
 
+function Stream:save(filename, format)
+	if self:len() == math.huge then
+		error("Cannot save infinite stream")
+	end
+
+	local hnd = sndfile:new(filename, "SFM_WRITE",
+	                        samplerate, 1, format)
+
+	local tick = self:tick()
+
+	while true do
+		local sample = tick()
+		if not sample then break end
+
+		hnd:write(sample)
+	end
+
+	hnd:close()
+end
+
 function Stream:toplot(rows, cols)
 	rows = rows or 25
 	cols = cols or 80
@@ -438,6 +459,41 @@ end
 
 function VectorStream:len()
 	return #self.vector
+end
+
+SndfileStream = DeriveClass(Stream, function(self, filename)
+	self.filename = filename
+end)
+
+function SndfileStream:tick()
+	-- NOTE: Opening the file here has the advantage
+	-- that the stream can be reused multiple times
+	-- FIXME: This fails if the file is not at the
+	-- correct sample rate. Need to resample...
+	local handle = sndfile:new(self.filename, "SFM_READ")
+
+	return function()
+		if not handle then return end
+
+		local sample = handle:read()
+		if not sample then
+			handle:close()
+			handle = nil
+		end
+
+		return sample
+	end
+end
+
+function SndfileStream:len()
+	-- Since the file is not yet opened,
+	-- we must assume that its size never changes between
+	-- calling len() and depending on the length reported
+	local handle = sndfile:new(self.filename, "SFM_READ")
+	local len = tonumber(handle.info.frames)
+
+	handle:close()
+	return len
 end
 
 ConcatStream = DeriveClass(Stream, function(self, ...)
