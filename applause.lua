@@ -196,7 +196,7 @@ function Stream:ravel()
 end
 
 -- This is a linear resampler thanks to the
--- semantics of __index
+-- semantics of IndexStream
 function Stream:resample(factor)
 	return self[iota(math.floor(self:len() * factor)):div(factor)]
 end
@@ -311,12 +311,30 @@ function Stream:save(filename, format)
 	hnd:close()
 end
 
+function Stream:totable()
+	if self:len() == math.huge then
+		error("Cannot serialize infinite stream")
+	end
+
+	local tick = self:tick()
+	local vector = {}
+
+	while true do
+		local value = tick()
+
+		if not value then break end
+		table.insert(vector, value)
+	end
+
+	return vector
+end
+
 function Stream:toplot(rows, cols)
 	rows = rows or 25
 	cols = cols or 80
 
 	local scaled = self:resample(cols / self:len())
-	                   :add(1):mul(rows/2):floor()()
+	                   :add(1):mul(rows/2):floor():totable()
 	local plot = {}
 
 	for i = 1, #scaled do
@@ -356,28 +374,14 @@ end
 function Stream:__len()	return self:len() end
 
 function Stream:__call()
-	if self:len() == math.huge then
-		error("Cannot serialize infinite stream")
-	end
-
-	local tick = self:tick()
-	local vector = {}
-
-	while true do
-		local value = tick()
-
-		if not value then break end
-		table.insert(vector, value)
-	end
-
-	return vector
+	return VectorStream:new(self:totable())
 end
 
 function Stream:__tostring()
 	local t
 
 	if self:len() > 1024 then
-		t = self:sub(1, 1024)()
+		t = self:sub(1, 1024):totable()
 		table.insert(t, "...")
 	else
 		t = self()
@@ -671,6 +675,9 @@ function SubStream:len()
 	       self.j - self.i + 1
 end
 
+-- FIXME: Will not work for non-samlpe streams
+-- This should be split into a generic (index) and
+-- sample-only (interpolate) operation
 IndexStream = DeriveClass(Stream, function(self, stream, index_stream)
 	self.stream = tostream(stream)
 	self.index_stream = tostream(index_stream)
