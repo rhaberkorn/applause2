@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 
 //#include <semaphore.h>
 
@@ -21,13 +22,11 @@ static jack_client_t *client = NULL;
 #define BUFFER_SIZE     (44100*60)      /* 1m samples */
 static jack_ringbuffer_t *buffer = NULL;
 
+static sig_atomic_t buffer_xrun = 0;
+
 /**
  * The process callback for this JACK application is called in a
  * special realtime thread once for each audio cycle.
- *
- * This client does nothing more than copy data from its input
- * port to its output port. It will exit when stopped by 
- * the user (e.g. using Ctrl-C on a unix-ish operating system)
  */
 static int
 jack_process(jack_nframes_t nframes, void *arg)
@@ -44,7 +43,13 @@ jack_process(jack_nframes_t nframes, void *arg)
 	 * channel per frame?
 	 */
 	r = jack_ringbuffer_read(buffer, (char *)out, len);
-	memset((char *)out + r, 0, len-r);
+
+	/*
+	 * Here we're assuming that memset() is realtime-capable.
+	 * It might not be on every UNIX!?
+	 */
+	memset((char *)out + r, 0, len - r);
+	buffer_xrun |= len - r > 0;
 
 	return 0;
 }
@@ -180,6 +185,17 @@ l_Stream_play(lua_State *L)
 	for (;;) {
 		jack_default_audio_sample_t sample;
 
+		/*
+		 * React to buffer underruns.
+		 * This is done here instead of in the realtime thread
+		 * even though it is already overloaded, so as not to
+		 * affect other applications in the Jack graph.
+		 */
+		if (buffer_xrun) {
+			fprintf(stderr, "WARNING: Buffer underrun detected!\n");
+			buffer_xrun = 0;
+		}
+
 		/* duplicate generator function */
 		lua_pushvalue(L, -1);
 
@@ -201,7 +217,8 @@ l_Stream_play(lua_State *L)
 		 * FIXME: Buffer may be full -- perhaps we should wait on a
 		 * semaphore
 		 */
-		jack_ringbuffer_write(buffer, (const char *)&sample, sizeof(sample));
+		jack_ringbuffer_write(buffer, (const char *)&sample,
+		                      sizeof(sample));
 
 		/* pop sample, the function dup has already been popped */
 		lua_pop(L, 1);
