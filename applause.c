@@ -28,6 +28,8 @@ static jack_ringbuffer_t	*buffer = NULL;
 static int			buffer_sem;
 static sig_atomic_t		buffer_xrun = 0;
 
+static sig_atomic_t		interrupted = 0;
+
 static int
 svsem_init(size_t value)
 {
@@ -73,6 +75,21 @@ static inline int
 svsem_free(int id)
 {
 	return semctl(id, 0, IPC_RMID);
+}
+
+/**
+ * Handler for SIGINT signals.
+ *
+ * This handler is invoked e.g. when the user presses
+ * CTRL+C.
+ * It sets `interrupted` which is polled in the Lua play()
+ * method which allows us to interrupt long (possibly infinite)
+ * sound playback.
+ */
+static void
+sigint_handler(int signum)
+{
+	interrupted = 1;
 }
 
 /**
@@ -253,7 +270,9 @@ l_Stream_play(lua_State *L)
 	lua_gc(L, LUA_GCCOLLECT, 0);
 	lua_gc(L, LUA_GCSTOP, 0);
 
-	for (;;) {
+	interrupted = 0;
+
+	while (!interrupted) {
 		jack_default_audio_sample_t sample;
 
 		/*
@@ -303,6 +322,9 @@ l_Stream_play(lua_State *L)
 
 	lua_gc(L, LUA_GCRESTART, 0);
 
+	if (interrupted)
+		return luaL_error(L, "SIGINT received");
+
 	/* any remaining stack elements are automatically popped */
 	return 0;
 }
@@ -311,6 +333,7 @@ int
 main(int argc, char **argv)
 {
 	int buffer_size = DEFAULT_BUFFER_SIZE;
+	struct sigaction sigint_action;
 
 	static const luaL_Reg stream_methods[] = {
 		{"play", l_Stream_play},
@@ -324,6 +347,17 @@ main(int argc, char **argv)
 	 */
 	if (argc > 1)
 		buffer_size = atoi(argv[1]);
+
+	/*
+	 * Register sigint_handler() as the SIGINT handler.
+	 * This sets `interrupted`. Currently this is only polled
+	 * in the Lua play() method in order to interrupt long
+	 * sound playing.
+	 * Otherwise it is ignored.
+	 */
+	memset(&sigint_action, 0, sizeof(sigint_action));
+	sigint_action.sa_handler = sigint_handler;
+	sigaction(SIGINT, &sigint_action, NULL);
 
 	L = luaL_newstate();
 	if (!L) {
