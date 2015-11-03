@@ -23,7 +23,7 @@
 static jack_port_t		*output_port;
 static jack_client_t		*client = NULL;
 
-#define BUFFER_SIZE     (44100*60)      /* 1m samples */
+#define DEFAULT_BUFFER_SIZE	100	/* milliseconds */
 static jack_ringbuffer_t	*buffer = NULL;
 static int			buffer_sem;
 static sig_atomic_t		buffer_xrun = 0;
@@ -33,11 +33,25 @@ svsem_init(size_t value)
 {
 	int id;
 
-	id = semget(IPC_PRIVATE, 1, IPC_CREAT);
+	/*
+	 * This is not in sem.h but required since
+	 * sizeof(int) could be unequal sizeof(void*)
+	 */
+	union semun {
+		int              val;    /* Value for SETVAL */
+		struct semid_ds *buf;    /* Buffer for IPC_STAT, IPC_SET */
+		unsigned short  *array;  /* Array for GETALL, SETALL */
+		struct seminfo  *__buf;  /* Buffer for IPC_INFO
+		                                           (Linux-specific) */
+	} arg = {
+		.val = value
+	};
+
+	id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0777);
 	if (id < 0)
 		return -1;
 
-	if (semctl(id, 0, SETVAL, (int)value) < 0)
+	if (semctl(id, 0, SETVAL, arg) < 0)
 		return -1;
 
 	return id;
@@ -111,8 +125,9 @@ jack_shutdown(void *arg)
 }
 
 static int
-init_audio(void)
+init_audio(int buffer_size)
 {
+	size_t buffer_samples;
 	const char **ports;
 	const char *client_name = "applause";
 	const char *server_name = NULL;
@@ -156,7 +171,6 @@ init_audio(void)
 	output_port = jack_port_register (client, "output",
 					  JACK_DEFAULT_AUDIO_TYPE,
 					  JackPortIsOutput, 0);
-
 	if (output_port == NULL) {
 		fprintf(stderr, "no more JACK ports available\n");
 		return 1;
@@ -168,16 +182,17 @@ init_audio(void)
 	 * since it represents the available bytes in the ring
 	 * buffer.
 	 */
+	buffer_samples = jack_get_sample_rate(client)*buffer_size/1000;
 	buffer = jack_ringbuffer_create(sizeof(jack_default_audio_sample_t)*
-	                                BUFFER_SIZE);
+	                                buffer_samples);
 	if (!buffer) {
 		fprintf(stderr, "cannot create ringbuffer\n");
 		return 1;
 	}
 
-	buffer_sem = svsem_init(BUFFER_SIZE);
+	buffer_sem = svsem_init(buffer_samples);
 	if (buffer_sem < 0) {
-		fprintf(stderr, "error initializing ring buffer\n");
+		fprintf(stderr, "error initializing semaphore\n");
 		return 1;
 	}
 
@@ -295,12 +310,20 @@ l_Stream_play(lua_State *L)
 int
 main(int argc, char **argv)
 {
+	int buffer_size = DEFAULT_BUFFER_SIZE;
+
 	static const luaL_Reg stream_methods[] = {
 		{"play", l_Stream_play},
 		{NULL, NULL}
 	};
 
 	lua_State *L;
+
+	/*
+	 * FIXME: Support --help
+	 */
+	if (argc > 1)
+		buffer_size = atoi(argv[1]);
 
 	L = luaL_newstate();
 	if (!L) {
@@ -317,7 +340,7 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	init_audio();
+	init_audio(buffer_size);
 
 	/*
 	 * Register C functions in the `Stream` class
