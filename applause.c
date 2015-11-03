@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -67,8 +68,15 @@ svsem_op(int id, int value)
 		.sem_op = value,
 		.sem_flg = 0
 	};
+	int rc;
 
-	return semop(id, &op, 1);
+	/*
+	 * Repeat operation when it is interrupted.
+	 */
+	while ((rc = semop(id, &op, 1)) < 0 &&
+	       errno == EINTR);
+
+	return rc;
 }
 
 static inline int
@@ -114,7 +122,7 @@ jack_process(jack_nframes_t nframes, void *arg)
 
 	/*
 	 * The semaphor value corresponds with the number of
-	 * writable samples in buffer, i.e. the available space.
+	 * writable bytes in buffer, i.e. the available space.
 	 * This operation should never block and is supposed to
 	 * be real-time safe :-)
 	 */
@@ -144,7 +152,7 @@ jack_shutdown(void *arg)
 static int
 init_audio(int buffer_size)
 {
-	size_t buffer_samples;
+	size_t buffer_bytes;
 	const char **ports;
 	const char *client_name = "applause";
 	const char *server_name = NULL;
@@ -199,15 +207,15 @@ init_audio(int buffer_size)
 	 * since it represents the available bytes in the ring
 	 * buffer.
 	 */
-	buffer_samples = jack_get_sample_rate(client)*buffer_size/1000;
-	buffer = jack_ringbuffer_create(sizeof(jack_default_audio_sample_t)*
-	                                buffer_samples);
+	buffer_bytes = sizeof(jack_default_audio_sample_t)*
+	               jack_get_sample_rate(client)*buffer_size/1000;
+	buffer = jack_ringbuffer_create(buffer_bytes);
 	if (!buffer) {
 		fprintf(stderr, "cannot create ringbuffer\n");
 		return 1;
 	}
 
-	buffer_sem = svsem_init(buffer_samples);
+	buffer_sem = svsem_init(buffer_bytes);
 	if (buffer_sem < 0) {
 		fprintf(stderr, "error initializing semaphore\n");
 		return 1;
@@ -311,7 +319,7 @@ l_Stream_play(lua_State *L)
 		 * in buffer since jack_process() will only read from the
 		 * buffer.
 		 */
-		svsem_op(buffer_sem, -1);
+		svsem_op(buffer_sem, -(int)sizeof(sample));
 
 		jack_ringbuffer_write(buffer, (const char *)&sample,
 		                      sizeof(sample));
