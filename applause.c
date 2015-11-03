@@ -1,8 +1,12 @@
+#define _XOPEN_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 
-//#include <semaphore.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -16,13 +20,46 @@
 
 #define LUA_MODULE "applause.lua"
 
-static jack_port_t *output_port;
-static jack_client_t *client = NULL;
+static jack_port_t		*output_port;
+static jack_client_t		*client = NULL;
 
 #define BUFFER_SIZE     (44100*60)      /* 1m samples */
-static jack_ringbuffer_t *buffer = NULL;
+static jack_ringbuffer_t	*buffer = NULL;
+static int			buffer_sem;
+static sig_atomic_t		buffer_xrun = 0;
 
-static sig_atomic_t buffer_xrun = 0;
+static int
+svsem_init(size_t value)
+{
+	int id;
+
+	id = semget(IPC_PRIVATE, 1, IPC_CREAT);
+	if (id < 0)
+		return -1;
+
+	if (semctl(id, 0, SETVAL, (int)value) < 0)
+		return -1;
+
+	return id;
+}
+
+static inline int
+svsem_op(int id, int value)
+{
+	struct sembuf op = {
+		.sem_num = 0,
+		.sem_op = value,
+		.sem_flg = 0
+	};
+
+	return semop(id, &op, 1);
+}
+
+static inline int
+svsem_free(int id)
+{
+	return semctl(id, 0, IPC_RMID);
+}
 
 /**
  * The process callback for this JACK application is called in a
@@ -43,6 +80,15 @@ jack_process(jack_nframes_t nframes, void *arg)
 	 * channel per frame?
 	 */
 	r = jack_ringbuffer_read(buffer, (char *)out, len);
+
+	/*
+	 * The semaphor value corresponds with the number of
+	 * writable samples in buffer, i.e. the available space.
+	 * This operation should never block and is supposed to
+	 * be real-time safe :-)
+	 */
+	if (r > 0)
+		svsem_op(buffer_sem, r);
 
 	/*
 	 * Here we're assuming that memset() is realtime-capable.
@@ -117,18 +163,28 @@ init_audio(void)
 	}
 
 	/*
-	 * Initialize ring buffer of samples
+	 * Initialize ring buffer of samples.
+	 * The semaphore is initialized with the same size
+	 * since it represents the available bytes in the ring
+	 * buffer.
 	 */
-	buffer = jack_ringbuffer_create(sizeof(jack_default_audio_sample_t)*BUFFER_SIZE);
+	buffer = jack_ringbuffer_create(sizeof(jack_default_audio_sample_t)*
+	                                BUFFER_SIZE);
 	if (!buffer) {
 		fprintf(stderr, "cannot create ringbuffer\n");
+		return 1;
+	}
+
+	buffer_sem = svsem_init(BUFFER_SIZE);
+	if (buffer_sem < 0) {
+		fprintf(stderr, "error initializing ring buffer\n");
 		return 1;
 	}
 
 	/* Tell the JACK server that we are ready to roll.  Our
 	 * process() callback will start running now. */
 
-	if (jack_activate (client)) {
+	if (jack_activate(client)) {
 		fprintf (stderr, "cannot activate client\n");
 		return 1;
 	}
@@ -213,10 +269,16 @@ l_Stream_play(lua_State *L)
 		 * the garbage collector
 		 */
 		sample = (jack_default_audio_sample_t)lua_tonumber(L, -1);
+
 		/*
-		 * FIXME: Buffer may be full -- perhaps we should wait on a
-		 * semaphore
+		 * We are about to "consume" one free sample in the buffer.
+		 * This can block when the buffer is full.
+		 * After this operation, there is __at least__ one sample free
+		 * in buffer since jack_process() will only read from the
+		 * buffer.
 		 */
+		svsem_op(buffer_sem, -1);
+
 		jack_ringbuffer_write(buffer, (const char *)&sample,
 		                      sizeof(sample));
 
@@ -301,6 +363,8 @@ main(int argc, char **argv)
 
 		free(line);
 	}
+
+	svsem_free(buffer_sem);
 
 	lua_close(L);
 }
