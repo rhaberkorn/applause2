@@ -21,6 +21,8 @@
 
 #define LUA_MODULE "applause.lua"
 
+#define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
+
 static jack_port_t		*output_port;
 static jack_client_t		*client = NULL;
 
@@ -202,13 +204,26 @@ init_audio(int buffer_size)
 	}
 
 	/*
+	 * Calculate the buffer size in bytes given the `buffer_size`
+	 * in milliseconds.
+	 * Make sure it is at least the Jack server's buffer size,
+	 * else jack_process() is very likely not able to provide
+	 * enough bytes.
+	 * FIXME: The Jack server's sample rate and buffer size can
+	 * theoretically change at runtime but currently,
+	 * the buffer size is not adapted
+	 * which means it could be too small after the change.
+	 */
+	buffer_bytes = sizeof(jack_default_audio_sample_t)*
+	               MAX(jack_get_sample_rate(client)*buffer_size/1000,
+	                   jack_get_buffer_size(client));
+
+	/*
 	 * Initialize ring buffer of samples.
 	 * The semaphore is initialized with the same size
 	 * since it represents the available bytes in the ring
 	 * buffer.
 	 */
-	buffer_bytes = sizeof(jack_default_audio_sample_t)*
-	               jack_get_sample_rate(client)*buffer_size/1000;
 	buffer = jack_ringbuffer_create(buffer_bytes);
 	if (!buffer) {
 		fprintf(stderr, "cannot create ringbuffer\n");
