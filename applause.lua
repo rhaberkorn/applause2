@@ -802,6 +802,7 @@ ZipStream = DeriveClass(Stream, function(self, fnc, ...)
 
 	self.streams = {}
 	for _, v in ipairs{...} do
+		v = tostream(v)
 		if v.is_zipstream and v.fnc == fnc then
 			-- Optimization: Avoid redundant
 			-- ZipStream objects
@@ -809,7 +810,7 @@ ZipStream = DeriveClass(Stream, function(self, fnc, ...)
 				table.insert(self.streams, s)
 			end
 		else
-			table.insert(self.streams, tostream(v))
+			table.insert(self.streams, v)
 		end
 	end
 end)
