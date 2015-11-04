@@ -1,13 +1,17 @@
 #define _XOPEN_SOURCE
+#define _POSIX_C_SOURCE 199506L
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <signal.h>
 #include <errno.h>
 
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
+
+#include <pthread.h>
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -17,6 +21,7 @@
 #include <readline/history.h>
 
 #include <jack/jack.h>
+#include <jack/midiport.h>
 #include <jack/ringbuffer.h>
 
 #define LUA_MODULE "applause.lua"
@@ -29,9 +34,30 @@ static jack_client_t		*client = NULL;
 #define DEFAULT_BUFFER_SIZE	100	/* milliseconds */
 static jack_ringbuffer_t	*buffer = NULL;
 static int			buffer_sem;
+/**
+ * True if a buffer underrun occurs.
+ * FIXME: sig_atomic_t is probably the wrong type.
+ * Perhaps use the Mintomic types.
+ */
 static sig_atomic_t		buffer_xrun = 0;
 
 static sig_atomic_t		interrupted = 0;
+
+static jack_port_t		*midi_port;
+/**
+ * State of all the MIDI controls as updated by
+ * CC commands.
+ * Access must be synchronized with `midi_mutex`.
+ * Perhaps this should use atomic operations instead
+ * (wasting a few kilobytes).
+ */
+static uint8_t			midi_controls[16][127];
+/**
+ * Mutex for synchronizing access to `midi_controls`.
+ * This MUST have the PTHREAD_PRIO_INHERIT protocol
+ * since it will be locked from a realtime thread.
+ */
+static pthread_mutex_t		midi_mutex;
 
 static int
 svsem_init(size_t value)
@@ -113,6 +139,9 @@ jack_process(jack_nframes_t nframes, void *arg)
 	size_t len = sizeof(*out)*nframes;
 	size_t r;
 
+	void *midi_in;
+	jack_nframes_t midi_events;
+
 	out = (jack_default_audio_sample_t *)
 		jack_port_get_buffer(output_port, nframes);
 
@@ -137,6 +166,29 @@ jack_process(jack_nframes_t nframes, void *arg)
 	 */
 	memset((char *)out + r, 0, len - r);
 	buffer_xrun |= len - r > 0;
+
+	/*
+	 * MIDI processing.
+	 * NOTE: This uses a priority inheriting mutex to
+	 * remain realtime capable.
+	 */
+	midi_in = jack_port_get_buffer(midi_port, nframes);
+	midi_events = jack_midi_get_event_count(midi_in);
+
+	for (int i = 0; i < midi_events; i++) {
+		jack_midi_event_t event;
+
+		jack_midi_event_get(&event, midi_in, i);
+
+		if ((event.buffer[0] & 0xF0) != 0xB0)
+			/* not a control command */
+			continue;
+
+		pthread_mutex_lock(&midi_mutex);
+		midi_controls[event.buffer[0] & 0x0F]
+		             [event.buffer[1]] = event.buffer[2];
+		pthread_mutex_unlock(&midi_mutex);
+	}
 
 	return 0;
 }
@@ -193,8 +245,9 @@ init_audio(int buffer_size)
 
 	jack_on_shutdown (client, jack_shutdown, 0);
 
-	/* create two ports */
-
+	/*
+	 * Create output ports
+	 */
 	output_port = jack_port_register (client, "output",
 					  JACK_DEFAULT_AUDIO_TYPE,
 					  JackPortIsOutput, 0);
@@ -202,6 +255,27 @@ init_audio(int buffer_size)
 		fprintf(stderr, "no more JACK ports available\n");
 		return 1;
 	}
+
+	/*
+	 * Create MIDI input port
+	 */
+	midi_port = jack_port_register(client, "midi_input",
+	                               JACK_DEFAULT_MIDI_TYPE,
+	                               JackPortIsInput, 0);
+	if (midi_port == NULL) {
+		fprintf(stderr, "no more JACK ports available\n");
+		return 1;
+	}
+
+	memset(&midi_controls, 0, sizeof(midi_controls));
+
+	pthread_mutexattr_t prioinherit;
+	if (pthread_mutexattr_setprotocol(&prioinherit, PTHREAD_PRIO_INHERIT)) {
+		fprintf(stderr, "Error initializing MIDI mutex with priority inheritance!\n");
+		return 1;
+	}
+
+	pthread_mutex_init(&midi_mutex, &prioinherit);
 
 	/*
 	 * Calculate the buffer size in bytes given the `buffer_size`
@@ -265,6 +339,39 @@ init_audio(int buffer_size)
 
 	free (ports);
 	return 0;
+}
+
+static int
+l_MIDICCStream_getValue(lua_State *L)
+{
+	int top = lua_gettop(L);
+	lua_Integer channel, control, value;
+
+	luaL_argcheck(L, top == 2, top, "Control and channel number expected");
+	luaL_checktype(L, 1, LUA_TNUMBER);
+	luaL_checktype(L, 2, LUA_TNUMBER);
+
+	control = lua_tointeger(L, 1);
+	luaL_argcheck(L, 0 <= control && control <= 127, control,
+	              "Invalid control number range (0 <= x <= 127)");
+	channel = lua_tointeger(L, 2);
+	luaL_argcheck(L, 0 <= channel && channel <= 15, channel,
+	              "Invalid channel range (0 <= x <= 15)");
+
+	pthread_mutex_lock(&midi_mutex);
+	/*
+	 * This thread might be lifted to realtime priority
+	 * since this is a priority inheritance mutex.
+	 * We will block a realtime thread while we're in the
+	 * critical section.
+	 * Therefore it is crucial that the following code
+	 * is realtime-safe.
+	 */
+	value = midi_controls[channel][control];
+	pthread_mutex_unlock(&midi_mutex);
+
+	lua_pushinteger(L, value);
+	return 1;
 }
 
 static int
@@ -363,6 +470,11 @@ main(int argc, char **argv)
 		{NULL, NULL}
 	};
 
+	static const luaL_Reg midiccstream_methods[] = {
+		{"getValue", l_MIDICCStream_getValue},
+		{NULL, NULL}
+	};
+
 	lua_State *L;
 
 	/*
@@ -404,6 +516,13 @@ main(int argc, char **argv)
 	 */
 	lua_getglobal(L, "Stream");
 	luaL_register(L, NULL, stream_methods);
+	lua_pop(L, 1);
+
+	/*
+	 * Register C functions in the `MIDICCStream` class
+	 */
+	lua_getglobal(L, "MIDICCStream");
+	luaL_register(L, NULL, midiccstream_methods);
 	lua_pop(L, 1);
 
 	/*

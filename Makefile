@@ -19,7 +19,8 @@ JACK_CFLAGS := $(shell pkg-config --cflags jack)
 JACK_LDFLAGS := $(shell pkg-config --libs jack)
 
 CFLAGS += $(LUA_CFLAGS) $(READLINE_CFLAGS) $(JACK_CFLAGS)
-LDFLAGS += $(LUA_LDFLAGS) $(READLINE_LDFLAGS) $(JACK_LDFLAGS)
+LDFLAGS += $(LUA_LDFLAGS) $(READLINE_LDFLAGS) $(JACK_LDFLAGS) \
+           -lpthread
 
 all : applause
 

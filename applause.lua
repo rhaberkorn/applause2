@@ -884,6 +884,27 @@ function NoiseStream:tick()
 	end
 end
 
+MIDICCStream = DeriveClass(Stream, function(self, control, channel)
+	self.control = control
+	self.channel = channel or 0
+end)
+
+-- implemented in applause.c, private!
+function MIDICCStream.getValue(control, channel)
+	error("C function not registered!")
+end
+
+-- FIXME: Perhaps implement tick() directly in C?
+function MIDICCStream:tick()
+	local control = self.control
+	local channel = self.channel
+	local getValue = self.getValue
+
+	return function()
+		return getValue(control, channel)
+	end
+end
+
 -- primitives
 
 function tostream(v)
