@@ -16,6 +16,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <luajit.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -492,6 +493,13 @@ l_Stream_play(lua_State *L)
 	lua_call(L, 1, 1);
 	/* the tick generator function should now be on top of the stack */
 	luaL_checktype(L, -1, LUA_TFUNCTION);
+
+	/*
+	 * Make sure JIT compilation is turned on for the generator function
+	 * and all subfunctions.
+	 * This should not be necessary theoretically.
+	 */
+	luaJIT_setmode(L, -1, LUAJIT_MODE_ALLFUNC | LUAJIT_MODE_ON);
 
 	/*
 	 * Perform garbage collection cycle and turn it off

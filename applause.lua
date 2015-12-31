@@ -2,7 +2,7 @@ local sndfile = require "sndfile"
 local ffi = require "ffi"
 local bit = require "bit"
 
--- Make table.new() available
+-- Make table.new() available (a LuaJIT extension)
 require "table.new"
 
 --
@@ -336,7 +336,7 @@ function Stream:totable()
 	end
 
 	local tick = self:tick()
-	local vector = {}
+	local vector = table.new(self:len(), 0)
 
 	while true do
 		local value = tick()

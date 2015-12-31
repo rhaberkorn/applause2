@@ -2,15 +2,8 @@ CC = gcc
 
 CFLAGS = -std=c99 -Wall -O2
 
-LUAJIT = yes
-
-ifeq ($(LUAJIT),yes)
 LUA_CFLAGS = $(shell pkg-config --cflags luajit)
 LUA_LDFLAGS = $(shell pkg-config --libs luajit)
-else
-LUA_CFLAGS = $(shell pkg-config --cflags lua5.1)
-LUA_LDFLAGS = $(shell pkg-config --libs lua5.1)
-endif
 
 READLINE_CFLAGS =
 READLINE_LDFLAGS = -lreadline -lhistory
