@@ -51,7 +51,7 @@ static jack_port_t		*midi_port;
  * The values are the NOTE ON velocities.
  * Access must be syncronized with `midi_mutex`.
  */
-static uint8_t			midi_notes[16][127];
+static uint8_t			midi_notes[16][128];
 /** The MIDI note triggered last on a channel */
 static int			midi_notes_last[16];
 
@@ -62,7 +62,7 @@ static int			midi_notes_last[16];
  * Perhaps this should use atomic operations instead
  * (wasting a few kilobytes).
  */
-static uint8_t			midi_controls[16][127];
+static uint8_t			midi_controls[16][128];
 
 /**
  * Mutex for synchronizing access to `midi_controls`.
@@ -195,7 +195,7 @@ jack_process(jack_nframes_t nframes, void *arg)
 		channel = event.buffer[0] & 0x0F;
 
 		switch (event.buffer[0] & 0xF0) {
-		case 0x80:
+		case 0x80: /* NOTE OFF */
 			pthread_mutex_lock(&midi_mutex);
 			/* NOTE: The NOTE OFF velocity is currently ignored */
 			midi_notes[channel]
@@ -204,15 +204,16 @@ jack_process(jack_nframes_t nframes, void *arg)
 			pthread_mutex_unlock(&midi_mutex);
 			break;
 
-		case 0x90:
+		case 0x90: /* NOTE ON */
 			pthread_mutex_lock(&midi_mutex);
+			/* NOTE: Velocity of 0 has the same effect as NOTE OFF */
 			midi_notes[channel]
 			          [event.buffer[1]] = event.buffer[2];
 			midi_notes_last[channel] = event.buffer[1];
 			pthread_mutex_unlock(&midi_mutex);
 			break;
 
-		case 0xB0:
+		case 0xB0: /* Control Change */
 			pthread_mutex_lock(&midi_mutex);
 			midi_controls[channel]
 			             [event.buffer[1]] = event.buffer[2];
@@ -386,8 +387,10 @@ l_MIDIVelocityStream_getValue(lua_State *L)
 	luaL_argcheck(L, 0 <= note && note <= 127, note,
 	              "Invalid note number range (0 <= x <= 127)");
 	channel = lua_tointeger(L, 2);
-	luaL_argcheck(L, 0 <= channel && channel <= 15, channel,
-	              "Invalid channel range (0 <= x <= 15)");
+	luaL_argcheck(L, 1 <= channel && channel <= 16, channel,
+	              "Invalid channel range (1 <= x <= 16)");
+	/* The NOTE arrays are 0-based */
+	channel--;
 
 	pthread_mutex_lock(&midi_mutex);
 	/*
@@ -415,8 +418,10 @@ l_MIDINoteStream_getValue(lua_State *L)
 	luaL_checktype(L, 1, LUA_TNUMBER);
 
 	channel = lua_tointeger(L, 1);
-	luaL_argcheck(L, 0 <= channel && channel <= 15, channel,
-	              "Invalid channel range (0 <= x <= 15)");
+	luaL_argcheck(L, 1 <= channel && channel <= 16, channel,
+	              "Invalid channel range (1 <= x <= 16)");
+	/* The NOTE arrays are 0-based */
+	channel--;
 
 	pthread_mutex_lock(&midi_mutex);
 	/*
@@ -449,8 +454,10 @@ l_MIDICCStream_getValue(lua_State *L)
 	luaL_argcheck(L, 0 <= control && control <= 127, control,
 	              "Invalid control number range (0 <= x <= 127)");
 	channel = lua_tointeger(L, 2);
-	luaL_argcheck(L, 0 <= channel && channel <= 15, channel,
-	              "Invalid channel range (0 <= x <= 15)");
+	luaL_argcheck(L, 1 <= channel && channel <= 16, channel,
+	              "Invalid channel range (1 <= x <= 16)");
+	/* The NOTE arrays are 0-based */
+	channel--;
 
 	pthread_mutex_lock(&midi_mutex);
 	/*

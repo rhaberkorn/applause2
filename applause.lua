@@ -903,10 +903,14 @@ function NoiseStream:tick()
 	end
 end
 
+--
+-- MIDI Support
+--
+
 -- Velocity of NOTE ON for a specific note on a channel
 MIDIVelocityStream = DeriveClass(Stream, function(self, note, channel)
 	self.note = note
-	self.channel = channel or 0
+	self.channel = channel or 1
 end)
 
 -- implemented in applause.c, private!
@@ -930,7 +934,7 @@ end
 -- The MIDI note is the lower byte and the velocity the
 -- upper byte of the word.
 MIDINoteStream = DeriveClass(Stream, function(self, channel)
-	self.channel = channel or 0
+	self.channel = channel or 1
 end)
 
 -- implemented in applause.c, private!
@@ -949,7 +953,7 @@ end
 
 MIDICCStream = DeriveClass(Stream, function(self, control, channel)
 	self.control = control
-	self.channel = channel or 0
+	self.channel = channel or 1
 end)
 
 -- implemented in applause.c, private!
@@ -969,12 +973,12 @@ end
 
 -- MIDI primitives
 
--- There are only 120 different MIDI notes,
+-- There are only 128 possible MIDI notes,
 -- so their frequencies can and should be cached.
 -- We do this once instead of on-demand, so the lookup
 -- table consists of consecutive numbers.
-local mtof_cache = table.new(120, 0)
-for note = 0, 119 do
+local mtof_cache = table.new(128, 0)
+for note = 0, 127 do
 	-- MIDI NOTE 69 corresponds to 440 Hz
 	mtof_cache[note] = 440*math.pow(2, (note - 69)/12)
 end
