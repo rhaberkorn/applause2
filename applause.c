@@ -44,6 +44,17 @@ static sig_atomic_t		buffer_xrun = 0;
 static sig_atomic_t		interrupted = 0;
 
 static jack_port_t		*midi_port;
+
+/**
+ * State of all the MIDI notes as updated by
+ * NOTE ON/OFF commands.
+ * The values are the NOTE ON velocities.
+ * Access must be syncronized with `midi_mutex`.
+ */
+static uint8_t			midi_notes[16][127];
+/** The MIDI note triggered last on a channel */
+static int			midi_notes_last[16];
+
 /**
  * State of all the MIDI controls as updated by
  * CC commands.
@@ -52,6 +63,7 @@ static jack_port_t		*midi_port;
  * (wasting a few kilobytes).
  */
 static uint8_t			midi_controls[16][127];
+
 /**
  * Mutex for synchronizing access to `midi_controls`.
  * This MUST have the PTHREAD_PRIO_INHERIT protocol
@@ -177,17 +189,36 @@ jack_process(jack_nframes_t nframes, void *arg)
 
 	for (int i = 0; i < midi_events; i++) {
 		jack_midi_event_t event;
+		int channel;
 
 		jack_midi_event_get(&event, midi_in, i);
+		channel = event.buffer[0] & 0x0F;
 
-		if ((event.buffer[0] & 0xF0) != 0xB0)
-			/* not a control command */
-			continue;
+		switch (event.buffer[0] & 0xF0) {
+		case 0x80:
+			pthread_mutex_lock(&midi_mutex);
+			/* NOTE: The NOTE OFF velocity is currently ignored */
+			midi_notes[channel]
+			          [event.buffer[1]] = 0;
+			midi_notes_last[channel] = event.buffer[1];
+			pthread_mutex_unlock(&midi_mutex);
+			break;
 
-		pthread_mutex_lock(&midi_mutex);
-		midi_controls[event.buffer[0] & 0x0F]
-		             [event.buffer[1]] = event.buffer[2];
-		pthread_mutex_unlock(&midi_mutex);
+		case 0x90:
+			pthread_mutex_lock(&midi_mutex);
+			midi_notes[channel]
+			          [event.buffer[1]] = event.buffer[2];
+			midi_notes_last[channel] = event.buffer[1];
+			pthread_mutex_unlock(&midi_mutex);
+			break;
+
+		case 0xB0:
+			pthread_mutex_lock(&midi_mutex);
+			midi_controls[channel]
+			             [event.buffer[1]] = event.buffer[2];
+			pthread_mutex_unlock(&midi_mutex);
+			break;
+		}
 	}
 
 	return 0;
@@ -342,6 +373,69 @@ init_audio(int buffer_size)
 }
 
 static int
+l_MIDIVelocityStream_getValue(lua_State *L)
+{
+	int top = lua_gettop(L);
+	lua_Integer channel, note, value;
+
+	luaL_argcheck(L, top == 2, top, "Note and channel number expected");
+	luaL_checktype(L, 1, LUA_TNUMBER);
+	luaL_checktype(L, 2, LUA_TNUMBER);
+
+	note = lua_tointeger(L, 1);
+	luaL_argcheck(L, 0 <= note && note <= 127, note,
+	              "Invalid note number range (0 <= x <= 127)");
+	channel = lua_tointeger(L, 2);
+	luaL_argcheck(L, 0 <= channel && channel <= 15, channel,
+	              "Invalid channel range (0 <= x <= 15)");
+
+	pthread_mutex_lock(&midi_mutex);
+	/*
+	 * This thread might be lifted to realtime priority
+	 * since this is a priority inheritance mutex.
+	 * We will block a realtime thread while we're in the
+	 * critical section.
+	 * Therefore it is crucial that the following code
+	 * is realtime-safe.
+	 */
+	value = midi_notes[channel][note];
+	pthread_mutex_unlock(&midi_mutex);
+
+	lua_pushinteger(L, value);
+	return 1;
+}
+
+static int
+l_MIDINoteStream_getValue(lua_State *L)
+{
+	int top = lua_gettop(L);
+	lua_Integer channel, value;
+
+	luaL_argcheck(L, top == 1, top, "Channel number expected");
+	luaL_checktype(L, 1, LUA_TNUMBER);
+
+	channel = lua_tointeger(L, 1);
+	luaL_argcheck(L, 0 <= channel && channel <= 15, channel,
+	              "Invalid channel range (0 <= x <= 15)");
+
+	pthread_mutex_lock(&midi_mutex);
+	/*
+	 * This thread might be lifted to realtime priority
+	 * since this is a priority inheritance mutex.
+	 * We will block a realtime thread while we're in the
+	 * critical section.
+	 * Therefore it is crucial that the following code
+	 * is realtime-safe.
+	 */
+	value = midi_notes_last[channel] |
+	        (midi_notes[channel][midi_notes_last[channel]] << 8);
+	pthread_mutex_unlock(&midi_mutex);
+
+	lua_pushinteger(L, value);
+	return 1;
+}
+
+static int
 l_MIDICCStream_getValue(lua_State *L)
 {
 	int top = lua_gettop(L);
@@ -459,21 +553,25 @@ l_Stream_play(lua_State *L)
 	return 0;
 }
 
+typedef struct NativeMethod {
+	const char *class_name;
+	const char *method_name;
+	lua_CFunction func;
+} NativeMethod;
+
+static const NativeMethod native_methods[] = {
+	{"Stream",             "play",     l_Stream_play},
+	{"MIDIVelocityStream", "getValue", l_MIDIVelocityStream_getValue},
+	{"MIDINoteStream",     "getValue", l_MIDINoteStream_getValue},
+	{"MIDICCStream",       "getValue", l_MIDICCStream_getValue},
+	{NULL, NULL, NULL}
+};
+
 int
 main(int argc, char **argv)
 {
 	int buffer_size = DEFAULT_BUFFER_SIZE;
 	struct sigaction sigint_action;
-
-	static const luaL_Reg stream_methods[] = {
-		{"play", l_Stream_play},
-		{NULL, NULL}
-	};
-
-	static const luaL_Reg midiccstream_methods[] = {
-		{"getValue", l_MIDICCStream_getValue},
-		{NULL, NULL}
-	};
 
 	lua_State *L;
 
@@ -512,18 +610,18 @@ main(int argc, char **argv)
 	init_audio(buffer_size);
 
 	/*
-	 * Register C functions in the `Stream` class
+	 * Register native C functions.
+	 * This may be unefficient when registering multiple
+	 * methods in the same class.
 	 */
-	lua_getglobal(L, "Stream");
-	luaL_register(L, NULL, stream_methods);
-	lua_pop(L, 1);
-
-	/*
-	 * Register C functions in the `MIDICCStream` class
-	 */
-	lua_getglobal(L, "MIDICCStream");
-	luaL_register(L, NULL, midiccstream_methods);
-	lua_pop(L, 1);
+	for (const NativeMethod *method = native_methods;
+	     method->class_name;
+	     method++) {
+		lua_getglobal(L, method->class_name);
+		lua_pushcfunction(L, method->func);
+		lua_setfield(L, -2, method->method_name);
+		lua_pop(L, 1); /* pop class table */
+	}
 
 	/*
 	 * Set global `samplerate`
