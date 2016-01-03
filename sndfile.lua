@@ -104,7 +104,17 @@ typedef enum SF_MODE {
         SFM_RDWR        = 0x30
 } SF_MODE;
 
+/* These values come from stdio.h */
+typedef enum SF_SEEK {
+	SEEK_SET = 0,
+	SEEK_CUR = 1,
+	SEEK_END = 2
+} SF_SEEK;
+
 SNDFILE* sf_open(const char *path, int mode, SF_INFO *sfinfo);
+
+sf_count_t sf_seek(SNDFILE *sndfile, sf_count_t frames, int whence);
+
 const char* sf_strerror(SNDFILE *sndfile);
 
 int sf_command(SNDFILE *sndfile, int command, void *data, int datasize);
@@ -173,6 +183,11 @@ function sndfile:new(path, mode, samplerate, channels, format)
 	})
 
 	return obj
+end
+
+function sndfile:seek(frames, whence)
+	whence = whence and ffi.new("SF_SEEK", whence) or ffi.C.SEEK_SET
+	return lib.sf_seek(self.handle, frames, whence)
 end
 
 -- TODO: Maybe support reading multiple samples at once.

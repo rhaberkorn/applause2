@@ -55,6 +55,18 @@ samplerate = 44100
 function sec(x) return math.floor(samplerate*(x or 1)) end
 function msec(x) return sec((x or 1)/1000) end
 
+-- The clock signal:
+-- In order to support (re)using the same stream more than
+-- once in a complex stream without recalculating everything,
+-- tick closures must be shared among all usages of a stream.
+-- A clock signal is necessary to "trigger" the recalculation
+-- of a stream's current sample.
+-- The clock signal is a boolean oscillating between true and
+-- false. The global function is for advancing the clock more
+-- or less efficiently from the play() method implemented in C.
+local clock_signal = false
+function clockCycle() clock_signal = not clock_signal end
+
 function DeriveClass(base, ctor)
 	local class = {}
 
@@ -108,6 +120,19 @@ function Stream:tick()
 	return function()
 		return self.value
 	end
+end
+
+Stream.streams = {}
+function Stream:reset()
+	for i = 1, #self.streams do
+		self.streams[i]:reset()
+	end
+end
+
+-- Explicitly clock-sync a stream.
+-- FIXME: This should be done automatically by an optimizer stage.
+function Stream:sync()
+	return SyncedStream:new(self)
 end
 
 function Stream:map(fnc)
@@ -323,9 +348,13 @@ function Stream:save(filename, format)
 	local hnd = sndfile:new(filename, "SFM_WRITE",
 	                        samplerate, 1, format)
 
+	self:reset()
+
 	local tick = self:tick()
 
 	while true do
+		clockCycle()
+
 		local sample = tick()
 		if not sample then break end
 
@@ -340,13 +369,17 @@ function Stream:totable()
 		error("Cannot serialize infinite stream")
 	end
 
+	self:reset()
+
 	local tick = self:tick()
 	local vector = table.new(self:len(), 0)
 
 	while true do
-		local value = tick()
+		clockCycle()
 
+		local value = tick()
 		if not value then break end
+
 		table.insert(vector, value)
 	end
 
@@ -472,16 +505,45 @@ function Stream.__le(op1, op2)
 	return op1:len() <= op2:len()
 end
 
+SyncedStream = DeriveClass(Stream, function(self, stream)
+	self.streams = {stream}
+end)
+
+function SyncedStream:reset()
+	self.syncedTick = nil
+	Stream.reset(self)
+end
+
+function SyncedStream:tick()
+	if not self.syncedTick then
+		local last_clock
+		local last_sample
+
+		local tick = self.streams[1]:tick()
+
+		self.syncedTick = function()
+			if clock_signal ~= last_clock then
+				last_clock = clock_signal
+				last_sample = tick()
+			end
+			return last_sample
+		end
+	end
+
+	return self.syncedTick
+end
+
 VectorStream = DeriveClass(Stream, function(self, vector)
 	self.vector = vector
 end)
 
 function VectorStream:tick()
+	local vector = self.vector
 	local i = 0
 
 	return function()
 		i = i + 1
-		return self.vector[i]
+		return vector[i]
 	end
 end
 
@@ -489,39 +551,39 @@ function VectorStream:len()
 	return #self.vector
 end
 
+-- NOTE: A SndfileStream itself cannot currently be reused within
+-- one high-level stream (i.e. UGen graph).
+-- SndfileStream:sync() must be called to wrap it in a
+-- synced stream manually.
+-- FIXME: This will no longer be necessary when syncing
+-- streams automatically in an optimization phase.
 SndfileStream = DeriveClass(Stream, function(self, filename)
-	self.filename = filename
-end)
-
-function SndfileStream:tick()
-	-- NOTE: Opening the file here has the advantage
-	-- that the stream can be reused multiple times
 	-- FIXME: This fails if the file is not at the
 	-- correct sample rate. Need to resample...
-	local handle = sndfile:new(self.filename, "SFM_READ")
+	self.handle = sndfile:new(filename, "SFM_READ")
+end)
+
+function SndfileStream:reset()
+	self.handle:seek(0)
+	Stream.reset(self)
+end
+
+function SndfileStream:tick()
+	local handle = self.handle
 
 	return function()
-		if not handle then return end
-
-		local sample = handle:read()
-		if not sample then
-			handle:close()
-			handle = nil
-		end
-
-		return sample
+		return handle:read()
 	end
 end
 
 function SndfileStream:len()
-	-- Since the file is not yet opened,
-	-- we must assume that its size never changes between
-	-- calling len() and depending on the length reported
-	local handle = sndfile:new(self.filename, "SFM_READ")
-	local len = tonumber(handle.info.frames)
+	return tonumber(self.handle.info.frames)
+end
 
-	handle:close()
-	return len
+-- Sometimes it may be useful to explicitly close the file
+-- handle behind a SndfileStream
+function SndfileStream:close()
+	self.handle:close()
 end
 
 ConcatStream = DeriveClass(Stream, function(self, ...)
@@ -586,11 +648,11 @@ end
 -- (e.g. streams of streams), and is semantically similar
 -- to folding the stream with the Concat operation.
 RavelStream = DeriveClass(Stream, function(self, stream)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 end)
 
 function RavelStream:tick()
-	local stream_tick = self.stream:tick()
+	local stream_tick = self.streams[1]:tick()
 	local current_tick = nil
 
 	return function()
@@ -613,7 +675,7 @@ function RavelStream:tick()
 end
 
 function RavelStream:len()
-	if self.stream:len() == math.huge then
+	if self.streams[1]:len() == math.huge then
 		-- FIXME: Actually, it is possible that the stream
 		-- is infinite but consists only of empty streams.
 		-- In this case, tick() will be stuck in an infinite loop...
@@ -621,7 +683,7 @@ function RavelStream:len()
 	end
 
 	local len = 0
-	local t = self.stream()
+	local t = self.streams[1]()
 
 	for i = 1, #t do
 		len = len + (type(t[i]) == "table" and t[i].is_a_stream and
@@ -663,11 +725,11 @@ end
 
 -- i and j have the same semantics as in string.sub()
 SubStream = DeriveClass(Stream, function(self, stream, i, j)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.i = i
 	self.j = j or -1
 
-	local stream_len = self.stream:len()
+	local stream_len = self.streams[1]:len()
 
 	if self.i < 0 then self.i = self.i + stream_len + 1 end
 	if self.j < 0 then self.j = self.j + stream_len + 1 end
@@ -679,7 +741,7 @@ SubStream = DeriveClass(Stream, function(self, stream, i, j)
 end)
 
 function SubStream:tick()
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 
 	-- OPTIMIZE: Perhaps ask stream to skip the first
 	-- self.i-1 samples
@@ -703,15 +765,15 @@ end
 -- This should be split into a generic (index) and
 -- sample-only (interpolate) operation
 IndexStream = DeriveClass(Stream, function(self, stream, index_stream)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.index_stream = tostream(index_stream)
 end)
 
 function IndexStream:tick()
-	local stream_tick = self.stream:tick()
+	local stream_tick = self.streams[1]:tick()
 	local index_tick = self.index_stream:tick()
 
-	local stream_len = self.stream:len()
+	local stream_len = self.streams[1]:len()
 
 	-- avoid math table lookup at sample rate
 	local huge = math.huge
@@ -751,12 +813,12 @@ function IndexStream:len()
 end
 
 MapStream = DeriveClass(Stream, function(self, stream, fnc)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.fnc = fnc
 end)
 
 function MapStream:tick()
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 
 	return function()
 		local sample = tick()
@@ -765,16 +827,16 @@ function MapStream:tick()
 end
 
 function MapStream:len()
-	return self.stream:len()
+	return self.streams[1]:len()
 end
 
 ScanStream = DeriveClass(Stream, function(self, stream, fnc)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.fnc = fnc
 end)
 
 function ScanStream:tick()
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 	local last_sample = nil
 
 	return function()
@@ -787,16 +849,16 @@ function ScanStream:tick()
 end
 
 function ScanStream:len()
-	return self.stream:len()
+	return self.streams[1]:len()
 end
 
 FoldStream = DeriveClass(Stream, function(self, stream, fnc)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.fnc = fnc
 end)
 
 function FoldStream:tick()
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 
 	return function()
 		local l, r
@@ -813,7 +875,7 @@ function FoldStream:tick()
 end
 
 function FoldStream:len()
-	return self.stream:len() > 0 and 1 or 0
+	return self.streams[1]:len() > 0 and 1 or 0
 end
 
 -- ZipStream combines any number of streams into a single
@@ -1045,7 +1107,7 @@ local function Blackman(n, window)
 end
 
 FIRStream = DeriveClass(Stream, function(self, stream, freq_stream)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq_stream)
 end)
 
@@ -1056,14 +1118,14 @@ function FIRStream:tick()
 	-- this is the max. latency introduced by the filter
 	-- since the window must be filled before we can generate
 	-- (filtered) samples
-	local window_size = math.min(1024, self.stream:len())
+	local window_size = math.min(1024, self.streams[1]:len())
 	local window_p = window_size-1
 	local accu = 0
 
 	local blackman = {}
 	for i = 1, window_size do blackman[i] = Blackman(i-1, window_size) end
 
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 	local freq_tick = self.freq_stream:tick()
 
 	return function()
@@ -1092,7 +1154,7 @@ function FIRStream:tick()
 end
 
 function FIRStream:len()
-	return self.stream:len()
+	return self.streams[1]:len()
 end
 ]==]
 
@@ -1111,7 +1173,7 @@ local function ddn(f)
 end
 
 LPFStream = DeriveClass(Stream, function(self, stream, freq)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq)
 end)
 
@@ -1126,7 +1188,7 @@ function LPFStream:tick()
 	-- some cached math table lookups
 	local tan = math.tan
 
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 	local freq_tick = self.freq_stream:tick()
 	local cur_freq = nil
 
@@ -1164,11 +1226,11 @@ function LPFStream:tick()
 end
 
 function LPFStream:len()
-	return self.stream:len()
+	return self.streams[1]:len()
 end
 
 HPFStream = DeriveClass(Stream, function(self, stream, freq)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq)
 end)
 
@@ -1183,7 +1245,7 @@ function HPFStream:tick()
 	-- some cached math table lookups
 	local tan = math.tan
 
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 	local freq_tick = self.freq_stream:tick()
 	local cur_freq = nil
 
@@ -1226,13 +1288,13 @@ function HPFStream:tick()
 end
 
 function HPFStream:len()
-	return self.stream:len()
+	return self.streams[1]:len()
 end
 
 -- NOTE: The quality factor, indirectly proportional
 -- to the passband width
 BPFStream = DeriveClass(Stream, function(self, stream, freq, quality)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq)
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
@@ -1250,7 +1312,7 @@ function BPFStream:tick()
 	local tan = math.tan
 	local cos = math.cos
 
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 	local freq_tick = self.freq_stream:tick()
 	local cur_freq = nil
 
@@ -1290,13 +1352,13 @@ function BPFStream:tick()
 end
 
 function BPFStream:len()
-	return self.stream:len()
+	return self.streams[1]:len()
 end
 
 -- NOTE: The quality factor, indirectly proportional
 -- to the passband width
 BRFStream = DeriveClass(Stream, function(self, stream, freq, quality)
-	self.stream = tostream(stream)
+	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq)
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
@@ -1314,7 +1376,7 @@ function BRFStream:tick()
 	local tan = math.tan
 	local cos = math.cos
 
-	local tick = self.stream:tick()
+	local tick = self.streams[1]:tick()
 	local freq_tick = self.freq_stream:tick()
 	local cur_freq = nil
 
@@ -1355,7 +1417,7 @@ function BRFStream:tick()
 end
 
 function BRFStream:len()
-	return self.stream:len()
+	return self.streams[1]:len()
 end
 
 --

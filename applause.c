@@ -496,12 +496,18 @@ l_Stream_play(lua_State *L)
 	luaL_argcheck(L, top == 1, top, "Stream object expected");
 	luaL_checktype(L, 1, LUA_TTABLE);
 
-	/* get tick() method */
-	lua_getfield(L, -1, "tick");
+	/* get reset() method */
+	lua_getfield(L, 1, "reset");
 	luaL_checktype(L, -1, LUA_TFUNCTION);
-	/* move in front of stream table since it needs a `self' argument */
-	lua_insert(L, 1);
+	/* duplicate object table since we have to call self.reset(self) */
+	lua_pushvalue(L, 1);
+	lua_call(L, 1, 0);
 
+	/* get tick() method */
+	lua_getfield(L, 1, "tick");
+	luaL_checktype(L, -1, LUA_TFUNCTION);
+	/* duplicate object table since we have to call self.tick(self) */
+	lua_pushvalue(L, 1);
 	lua_call(L, 1, 1);
 	/* the tick generator function should now be on top of the stack */
 	luaL_checktype(L, -1, LUA_TFUNCTION);
@@ -512,6 +518,14 @@ l_Stream_play(lua_State *L)
 	 * This should not be necessary theoretically.
 	 */
 	luaJIT_setmode(L, -1, LUAJIT_MODE_ALLFUNC | LUAJIT_MODE_ON);
+
+	/*
+	 * Get global cycleClock() function. It exists so we can
+	 * conveniently advance the clock from the native C method
+	 * without calling lua_setfield() and access a class table
+	 * from generator methods at sample rate.
+	 */
+	lua_getglobal(L, "clockCycle");
 
 	/*
 	 * Perform garbage collection cycle and turn it off
@@ -537,9 +551,16 @@ l_Stream_play(lua_State *L)
 			buffer_xrun = 0;
 		}
 
-		/* duplicate generator function */
+		/*
+		 * Duplicate and call clockCycle() function.
+		 * This is more efficient than calling lua_getglobal()
+		 * at sample rate.
+		 */
 		lua_pushvalue(L, -1);
+		lua_call(L, 0, 0);
 
+		/* duplicate generator function */
+		lua_pushvalue(L, -2);
 		/* generate next sample */
 		lua_call(L, 0, 1);
 
