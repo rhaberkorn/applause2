@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <signal.h>
+#include <unistd.h>
 #include <errno.h>
 
 #include <sys/types.h>
@@ -43,6 +44,8 @@ static int			buffer_sem;
 static sig_atomic_t		buffer_xrun = 0;
 
 static sig_atomic_t		interrupted = 0;
+
+static sig_atomic_t		playback = 0;
 
 static jack_port_t		*midi_port;
 
@@ -127,18 +130,25 @@ svsem_free(int id)
 }
 
 /**
- * Handler for SIGINT signals.
+ * Handler for SIGINT, SIGUSR1 and SIGUSR2 signals.
  *
- * This handler is invoked e.g. when the user presses
+ * SIGINT is delivered e.g. when the user presses
  * CTRL+C.
  * It sets `interrupted` which is polled in the Lua play()
  * method which allows us to interrupt long (possibly infinite)
  * sound playback.
+ *
+ * SIGUSR1 and SIGUSR2 are sent by parent to child
+ * clients in order to control playback.
  */
 static void
-sigint_handler(int signum)
+signal_handler(int signum)
 {
-	interrupted = 1;
+	switch (signum) {
+	case SIGINT: interrupted = 1; break;
+	case SIGUSR1: playback = 1; break;
+	case SIGUSR2: playback = 0; break;
+	}
 }
 
 /**
@@ -301,6 +311,8 @@ init_audio(int buffer_size)
 	}
 
 	memset(&midi_controls, 0, sizeof(midi_controls));
+	memset(&midi_notes, 0, sizeof(midi_notes));
+	memset(&midi_notes_last, 0, sizeof(midi_notes_last));
 
 	pthread_mutexattr_t prioinherit;
 	if (pthread_mutexattr_setprotocol(&prioinherit, PTHREAD_PRIO_INHERIT)) {
@@ -568,6 +580,72 @@ l_Stream_play(lua_State *L)
 	return 0;
 }
 
+static int
+l_Stream_fork(lua_State *L)
+{
+	int top = lua_gettop(L);
+	pid_t child_pid;
+
+	luaL_argcheck(L, top == 1, top, "Stream object expected");
+	luaL_checktype(L, 1, LUA_TTABLE);
+
+	/*
+	 * Query the parent client's ports.
+	 * We need to clone them in the child.
+	 */
+	//port_names = jack_get_ports(client, NULL, NULL, 0);
+
+	/*
+	 * Deactivate parent client temporarily, so forking works
+	 * safely.
+	 * This is possible since we can assume that fork() is only
+	 * called interactively - so the parent client is not currently
+	 * generating samples.
+	 */
+	jack_client_close(client);
+	//jack_deactivate(client);
+
+	child_pid = fork();
+	if (child_pid != 0) {
+		/* in the parent process */
+		//jack_activate(client);
+		init_audio(DEFAULT_BUFFER_SIZE);
+
+		/* call Client:new(child_pid) */
+		lua_getglobal(L, "Client");
+		lua_getfield(L, -1, "new");
+		/* make Client parameter to new() */
+		lua_insert(L, -2);
+		lua_pushinteger(L, child_pid);
+		lua_call(L, 2, 1);
+
+		return 1;
+	}
+
+	//jack_client_close(client);
+
+	init_audio(DEFAULT_BUFFER_SIZE);
+
+	for (;;) {
+		/*
+		 * Wait for start of playback (SIGUSR1)
+		 */
+		while (!playback)
+			pause();
+
+		/* get play() method */
+		lua_getfield(L, -1, "play");
+		luaL_checktype(L, -1, LUA_TFUNCTION);
+		/* duplicate the object table */
+		lua_pushvalue(L, 1);
+
+		lua_call(L, 1, 0);
+	}
+
+	/* never reached */
+	return 0;
+}
+
 typedef struct NativeMethod {
 	const char *class_name;
 	const char *method_name;
@@ -576,6 +654,7 @@ typedef struct NativeMethod {
 
 static const NativeMethod native_methods[] = {
 	{"Stream",             "play",     l_Stream_play},
+	{"Stream",             "fork",     l_Stream_fork},
 	{"MIDIVelocityStream", "getValue", l_MIDIVelocityStream_getValue},
 	{"MIDINoteStream",     "getValue", l_MIDINoteStream_getValue},
 	{"MIDICCStream",       "getValue", l_MIDICCStream_getValue},
@@ -586,7 +665,7 @@ int
 main(int argc, char **argv)
 {
 	int buffer_size = DEFAULT_BUFFER_SIZE;
-	struct sigaction sigint_action;
+	struct sigaction signal_action;
 
 	lua_State *L;
 
@@ -603,9 +682,11 @@ main(int argc, char **argv)
 	 * sound playing.
 	 * Otherwise it is ignored.
 	 */
-	memset(&sigint_action, 0, sizeof(sigint_action));
-	sigint_action.sa_handler = sigint_handler;
-	sigaction(SIGINT, &sigint_action, NULL);
+	memset(&signal_action, 0, sizeof(signal_action));
+	signal_action.sa_handler = signal_handler;
+	sigaction(SIGINT, &signal_action, NULL);
+	sigaction(SIGUSR1, &signal_action, NULL);
+	sigaction(SIGUSR2, &signal_action, NULL);
 
 	L = luaL_newstate();
 	if (!L) {

@@ -66,7 +66,7 @@ function DeriveClass(base, ctor)
 		for _, m in pairs{"len", "call", "tostring",
 		                  "add", "sub", "mul", "div",
 		                  "mod", "pow", "unm",
-		                  "concat", "lt", "le"} do
+		                  "concat", "lt", "le", "gc"} do
 			class["__"..m] = base["__"..m]
 		end
 	end
@@ -307,6 +307,11 @@ end
 
 -- implemented in applause.c
 function Stream:play()
+	error("C function not registered!")
+end
+
+-- implemented in applause.c
+function Stream:fork()
 	error("C function not registered!")
 end
 
@@ -1352,3 +1357,30 @@ end
 function BRFStream:len()
 	return self.stream:len()
 end
+
+--
+-- Jack client abstractions. This passes low level signals
+-- and works only with clients created via Stream.fork()
+--
+
+ffi.cdef[[
+int kill(int pid, int sig);
+]]
+
+Client = DeriveClass(null, function(self, pid)
+	self.pid = pid
+end)
+
+function Client:play()
+	ffi.C.kill(self.pid, 10); -- SIGUSR1
+end
+
+function Client:stop()
+	ffi.C.kill(self.pid, 12); -- SIGUSR2
+end
+
+function Client:kill()
+	ffi.C.kill(self.pid, 15); -- SIGTERM
+end
+
+Client.__gc = Client.kill
