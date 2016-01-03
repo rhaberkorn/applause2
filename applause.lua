@@ -449,40 +449,38 @@ function Stream:__tostring()
 	return "{"..table.concat(t, ", ").."}"
 end
 
+-- NOTE: Named addOp() and similar functions below
+-- are necessary instead of lambdas so consecutive
+-- operations can be collapsed by ZipStream (which
+-- tests for function equivalence)
+local function addOp(x1, x2) return x1+x2 end
 function Stream.__add(op1, op2)
-	return ZipStream:new(function(x1, x2)
-		return x1+x2
-	end, op1, op2)
+	return ZipStream:new(addOp, op1, op2)
 end
 
+local function subOp(x1, x2) return x1-x2 end
 function Stream.__sub(op1, op2)
-	return ZipStream:new(function(x1, x2)
-		return x1-x2
-	end, op1, op2)
+	return ZipStream:new(subOp, op1, op2)
 end
 
+local function mulOp(x1, x2) return x1*x2 end
 function Stream.__mul(op1, op2)
-	return ZipStream:new(function(x1, x2)
-		return x1*x2
-	end, op1, op2)
+	return ZipStream:new(mulOp, op1, op2)
 end
 
+local function divOp(x1, x2) return x1/x2 end
 function Stream.__div(op1, op2)
-	return ZipStream:new(function(x1, x2)
-		return x1/x2
-	end, op1, op2)
+	return ZipStream:new(divOp, op1, op2)
 end
 
+local function modOp(x1, x2) return x1%x2 end
 function Stream.__mod(op1, op2)
-	return ZipStream:new(function(x1, x2)
-		return x1%x2
-	end, op1, op2)
+	return ZipStream:new(modOp, op1, op2)
 end
 
+local function powOp(x1, x2) return x1^x2 end
 function Stream.__pow(op1, op2)
-	return ZipStream:new(function(x1, x2)
-		return x1^x2
-	end, op1, op2)
+	return ZipStream:new(powOp, op1, op2)
 end
 
 function Stream:__unm()	return self:mul(-1) end
