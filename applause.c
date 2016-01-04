@@ -667,6 +667,23 @@ l_Stream_fork(lua_State *L)
 	return 0;
 }
 
+/* stolen from luajit.c :-) */
+static int
+traceback(lua_State *L)
+{
+	if (!lua_isstring(L, 1)) { /* Non-string error object? Try metamethod. */
+		if (lua_isnoneornil(L, 1) ||
+		    !luaL_callmeta(L, 1, "__tostring") ||
+		    !lua_isstring(L, -1))
+			return 1;  /* Return non-string error object. */
+		lua_remove(L, 1);  /* Replace object by result of __tostring metamethod. */
+	}
+
+	luaL_traceback(L, L, lua_tostring(L, 1), 1);
+
+	return 1;
+}
+
 typedef struct NativeMethod {
 	const char *class_name;
 	const char *method_name;
@@ -746,8 +763,17 @@ main(int argc, char **argv)
 	lua_pushinteger(L, (lua_Integer)jack_get_sample_rate(client));
 	lua_setglobal(L, "samplerate");
 
+	/*
+	 * Push the error handler function. Will be used in the REPL
+	 * loop below.
+	 */
+	lua_pushcfunction(L, traceback);
+
 	for (;;) {
 		int stack_top;
+		/*
+		 * FIXME: Get global _PROMPT or _PROMPT2
+		 */
 		char *line = readline("> ");
 
 		if (!line) {
@@ -761,15 +787,33 @@ main(int argc, char **argv)
 		lua_getglobal(L, "print");
 		stack_top = lua_gettop(L);
 
-		if (luaL_dostring(L, line)) {
+		/*
+		 * AFAIK, we cannot support automatic printing of values
+		 * returned by expressions.
+		 * The chunk must return something (using `return`).
+		 * We cannot always prepend a `return` since AFAIK it is
+		 * impossible to embedded statements into expressions.
+		 * Therefore we support "=" as a shortcut to "return" just
+		 * like the luajit shell does.
+		 */
+		if (*line == '=') {
+			char *buf = malloc(7 + strlen(line));
+			sprintf(buf, "return %s", line+1);
+			free(line);
+			line = buf;
+		}
+
+		if (luaL_loadstring(L, line) || lua_pcall(L, 0, LUA_MULTRET, -3)) {
 			fprintf(stderr, "Error.\n");
 		}
 
 		/*
-		 * Automatically print values left on the stack
+		 * Automatically print values left on the stack:
+		 * This includes error messages left by lua_pcall()
 		 */
 		if (lua_pcall(L, lua_gettop(L) - stack_top, 0, 0)) {
-			fprintf(stderr, "Error.\n");
+			fprintf(stderr, "Error executing print().\n");
+			/* try to continue */
 		}
 
 		if (*line)
@@ -781,4 +825,5 @@ main(int argc, char **argv)
 	svsem_free(buffer_sem);
 
 	lua_close(L);
+	return 0;
 }
