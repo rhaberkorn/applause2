@@ -67,15 +67,13 @@ function msec(x) return sec((x or 1)/1000) end
 local clock_signal = false
 function clockCycle() clock_signal = not clock_signal end
 
-function DeriveClass(base, ctor)
-	local class = {}
+function DeriveClass(base)
+	local class = {base = base}
 
 	if base then
-		class = base:new()
-
 		-- we cannot derive metamethod tables, so we
 		-- copy all relevant metamethods
-		for _, m in pairs{"len", "call", "tostring",
+		for _, m in pairs{"len", "tostring",
 		                  "add", "sub", "mul", "div",
 		                  "mod", "pow", "unm",
 		                  "concat", "lt", "le", "gc"} do
@@ -83,35 +81,70 @@ function DeriveClass(base, ctor)
 		end
 	end
 
-	-- objects constructed from new class get the
-	-- class table as their metatable, so __index is set up
-	-- to look into the class table
-	function class:__index(key)
-		if type(key) == "string" then return getmetatable(self)[key] end
-
-		-- non-string keys create IndexTables
-		return IndexStream:new(self, key)
-	end
+	-- Metamethods should work even on root class tables
+	-- However, this way we cannot use metatables to track the
+	-- class inheritance. This is done using the `base` field.
+	setmetatable(class, class)
 
 	function class:new(...)
+		-- Try to call the parent constructor
 		local obj = base and base:new() or {}
 
+		obj.base = self
 		setmetatable(obj, self)
 
 		-- Allow constructors to return something else
 		-- than an instance of the class.
-		return ctor and ctor(obj, ...) or obj
+		return obj.ctor and obj:ctor(...) or obj
+	end
+
+	-- The call metamethod is synonymous to :new()
+	class.__call = class.new
+
+	-- All objects have the class table as their metatable,
+	-- so it must look into the class and possibly invoke metamethods
+	-- on the base class.
+	-- A simple `class.__index = base` does not work since
+	-- we want indexing to create IndexStreams.
+	-- NOTE: __index methods get the original table looked up
+	-- as their self argument (e.g. the stream object).
+	function class:__index(key)
+		if type(key) == "string" then
+			return rawget(class, key) or (base and base[key])
+		end
+
+		-- non-string keys create IndexStreams
+		return IndexStream:new(self, key)
+	end
+
+	-- Checks whether object is instance of other_class.
+	-- Will work with class templates as well.
+	-- This is not using getmetatable() since class metatables
+	-- point to themselves (see above).
+	function class:instanceof(other_class)
+		repeat
+			-- Better use rawequal() in case we support the
+			-- __eq metamethod someday.
+			if rawequal(self, other_class) then return true end
+			self = self.base
+		until not self
+
+		return false
 	end
 
 	return class
 end
 
 -- Stream base class
-Stream = DeriveClass(nil, function(self, value)
-	self.value = tonumber(value) or 0
-end)
+Stream = DeriveClass()
 
--- used by tostream():
+function Stream:ctor(value)
+	self.value = tonumber(value) or 0
+end
+
+-- There is Stream:instanceof(), but testing Stream.is_a_stream
+-- is sometimes faster (for generator functions) and can be done
+-- without knowing that the table at hand is an object
 Stream.is_a_stream = true
 
 -- A stream, produces an infinite number of the same value by default
@@ -328,8 +361,10 @@ end
 
 -- The len() method is the main way to get a stream's
 -- length (at least in this code) and classes should overwrite
--- this method since LuaJIT has problems
--- with invoking the __len metamethod (# operator).
+-- this method.
+-- The __len metamethod is also defined but it currently cannot
+-- work since Lua 5.1 does not consider a table's metamethod when
+-- evaluating the length (#) operator.
 function Stream:len()
 	return math.huge -- infinity
 end
@@ -390,6 +425,12 @@ function Stream:totable()
 	return vector
 end
 
+-- Effectively eager-evaluates the stream returning
+-- an array-backed stream.
+function Stream:eval()
+	return VectorStream:new(self:totable())
+end
+
 function Stream:toplot(rows, cols)
 	rows = rows or 25
 	cols = cols or 80
@@ -432,11 +473,9 @@ end
 
 -- Stream metamethods
 
+-- NOTE: Currently non-functional since Lua 5.1 does not
+-- consider metamethods when evaluating the length operator.
 function Stream:__len()	return self:len() end
-
-function Stream:__call()
-	return VectorStream:new(self:totable())
-end
 
 function Stream:__tostring()
 	local t
@@ -507,9 +546,11 @@ function Stream.__le(op1, op2)
 	return op1:len() <= op2:len()
 end
 
-SyncedStream = DeriveClass(Stream, function(self, stream)
+SyncedStream = DeriveClass(Stream)
+
+function SyncedStream:ctor(stream)
 	self.streams = {stream}
-end)
+end
 
 function SyncedStream:reset()
 	self.syncedTick = nil
@@ -535,9 +576,11 @@ function SyncedStream:tick()
 	return self.syncedTick
 end
 
-VectorStream = DeriveClass(Stream, function(self, vector)
+VectorStream = DeriveClass(Stream)
+
+function VectorStream:ctor(vector)
 	self.vector = vector
-end)
+end
 
 function VectorStream:tick()
 	local vector = self.vector
@@ -559,11 +602,13 @@ end
 -- synced stream manually.
 -- FIXME: This will no longer be necessary when syncing
 -- streams automatically in an optimization phase.
-SndfileStream = DeriveClass(Stream, function(self, filename)
+SndfileStream = DeriveClass(Stream)
+
+function SndfileStream:ctor(filename)
 	-- FIXME: This fails if the file is not at the
 	-- correct sample rate. Need to resample...
 	self.handle = sndfile:new(filename, "SFM_READ")
-end)
+end
 
 function SndfileStream:reset()
 	self.handle:seek(0)
@@ -588,19 +633,20 @@ function SndfileStream:close()
 	self.handle:close()
 end
 
-ConcatStream = DeriveClass(Stream, function(self, ...)
-	self.is_concatstream = true
+ConcatStream = DeriveClass(Stream)
 
+function ConcatStream:ctor(...)
 	self.streams = {}
 	for _, v in ipairs{...} do
-		if v.is_concatstream then
+		v = tostream(v)
+		if v:instanceof(ConcatStream) then
 			-- Optimization: Avoid redundant
 			-- ConcatStream objects
 			for _, s in ipairs(v.streams) do
 				table.insert(self.streams, s)
 			end
 		else
-			table.insert(self.streams, tostream(v))
+			table.insert(self.streams, v)
 		end
 	end
 
@@ -612,7 +658,7 @@ ConcatStream = DeriveClass(Stream, function(self, ...)
 			error("Stream "..i.." is infinite")
 		end
 	end
-end)
+end
 
 function ConcatStream:tick()
 	local i = 1
@@ -645,10 +691,12 @@ function ConcatStream:len()
 	return len
 end
 
-RepeatStream = DeriveClass(Stream, function(self, stream, repeats)
+RepeatStream = DeriveClass(Stream)
+
+function RepeatStream:ctor(stream, repeats)
 	self.streams = {tostream(stream)}
 	self.repeats = repeats or math.huge
-end)
+end
 
 function RepeatStream:tick()
 	local i = 1
@@ -678,9 +726,11 @@ end
 -- This removes one level of nesting from nested streams
 -- (e.g. streams of streams), and is semantically similar
 -- to folding the stream with the Concat operation.
-RavelStream = DeriveClass(Stream, function(self, stream)
+RavelStream = DeriveClass(Stream)
+
+function RavelStream:ctor(stream)
 	self.streams = {tostream(stream)}
-end)
+end
 
 function RavelStream:tick()
 	local stream_tick = self.streams[1]:tick()
@@ -696,6 +746,8 @@ function RavelStream:tick()
 
 			local value = stream_tick()
 
+			-- NOTE: We don't use instanceof() here for performance
+			-- reasons
 			if type(value) == "table" and value.is_a_stream then
 				current_tick = value:tick()
 			else
@@ -714,7 +766,7 @@ function RavelStream:len()
 	end
 
 	local len = 0
-	local t = self.streams[1]()
+	local t = self.streams[1]:totable()
 
 	for i = 1, #t do
 		len = len + (type(t[i]) == "table" and t[i].is_a_stream and
@@ -724,7 +776,9 @@ function RavelStream:len()
 	return len
 end
 
-IotaStream = DeriveClass(Stream, function(self, v1, v2)
+IotaStream = DeriveClass(Stream)
+
+function IotaStream:ctor(v1, v2)
 	if not v2 then
 		self.from = 1
 		self.to = v1 or math.huge
@@ -737,7 +791,7 @@ IotaStream = DeriveClass(Stream, function(self, v1, v2)
 	   self.from > self.to then
 		error("Invalid iota range ["..self.from..","..self.to.."]")
 	end
-end)
+end
 
 function IotaStream:tick()
 	local i = self.from-1
@@ -755,7 +809,9 @@ function IotaStream:len()
 end
 
 -- i and j have the same semantics as in string.sub()
-SubStream = DeriveClass(Stream, function(self, stream, i, j)
+SubStream = DeriveClass(Stream)
+
+function SubStream:ctor(stream, i, j)
 	self.streams = {tostream(stream)}
 	self.i = i
 	self.j = j or -1
@@ -769,7 +825,7 @@ SubStream = DeriveClass(Stream, function(self, stream, i, j)
 	   self.i > self.j then
 		error("Invalid sub-stream range ["..self.i..","..self.j.."]")
 	end
-end)
+end
 
 function SubStream:tick()
 	local tick = self.streams[1]:tick()
@@ -795,10 +851,12 @@ end
 -- FIXME: Will not work for non-samlpe streams
 -- This should be split into a generic (index) and
 -- sample-only (interpolate) operation
-IndexStream = DeriveClass(Stream, function(self, stream, index_stream)
+IndexStream = DeriveClass(Stream)
+
+function IndexStream:ctor(stream, index_stream)
 	self.streams = {tostream(stream)}
 	self.index_stream = tostream(index_stream)
-end)
+end
 
 function IndexStream:tick()
 	local stream_tick = self.streams[1]:tick()
@@ -843,10 +901,12 @@ function IndexStream:len()
 	return self.index_stream:len()
 end
 
-MapStream = DeriveClass(Stream, function(self, stream, fnc)
+MapStream = DeriveClass(Stream)
+
+function MapStream:ctor(stream, fnc)
 	self.streams = {tostream(stream)}
 	self.fnc = fnc
-end)
+end
 
 function MapStream:tick()
 	local tick = self.streams[1]:tick()
@@ -861,10 +921,12 @@ function MapStream:len()
 	return self.streams[1]:len()
 end
 
-ScanStream = DeriveClass(Stream, function(self, stream, fnc)
+ScanStream = DeriveClass(Stream)
+
+function ScanStream:ctor(stream, fnc)
 	self.streams = {tostream(stream)}
 	self.fnc = fnc
-end)
+end
 
 function ScanStream:tick()
 	local tick = self.streams[1]:tick()
@@ -883,10 +945,12 @@ function ScanStream:len()
 	return self.streams[1]:len()
 end
 
-FoldStream = DeriveClass(Stream, function(self, stream, fnc)
+FoldStream = DeriveClass(Stream)
+
+function FoldStream:ctor(stream, fnc)
 	self.streams = {tostream(stream)}
 	self.fnc = fnc
-end)
+end
 
 function FoldStream:tick()
 	local tick = self.streams[1]:tick()
@@ -912,15 +976,15 @@ end
 -- ZipStream combines any number of streams into a single
 -- stream using a function. This is the basis of the "+"
 -- and "*" operations.
-ZipStream = DeriveClass(Stream, function(self, fnc, ...)
-	self.is_zipstream = true
+ZipStream = DeriveClass(Stream)
 
+function ZipStream:ctor(fnc, ...)
 	self.fnc = fnc
 
 	self.streams = {}
 	for _, v in ipairs{...} do
 		v = tostream(v)
-		if v.is_zipstream and v.fnc == fnc then
+		if v:instanceof(ZipStream) and v.fnc == fnc then
 			-- Optimization: Avoid redundant
 			-- ZipStream objects
 			for _, s in ipairs(v.streams) do
@@ -930,7 +994,7 @@ ZipStream = DeriveClass(Stream, function(self, fnc, ...)
 			table.insert(self.streams, v)
 		end
 	end
-end)
+end
 
 function ZipStream:tick()
 	local running = true
@@ -1006,10 +1070,12 @@ end
 --
 
 -- Velocity of NOTE ON for a specific note on a channel
-MIDIVelocityStream = DeriveClass(Stream, function(self, note, channel)
+MIDIVelocityStream = DeriveClass(Stream)
+
+function MIDIVelocityStream:ctor(note, channel)
 	self.note = note
 	self.channel = channel or 1
-end)
+end
 
 -- implemented in applause.c, private!
 function MIDIVelocityStream.getValue(note, channel)
@@ -1031,9 +1097,11 @@ end
 -- (of the NOTE ON message).
 -- The MIDI note is the lower byte and the velocity the
 -- upper byte of the word.
-MIDINoteStream = DeriveClass(Stream, function(self, channel)
+MIDINoteStream = DeriveClass(Stream)
+
+function MIDINoteStream:ctor(channel)
 	self.channel = channel or 1
-end)
+end
 
 -- implemented in applause.c, private!
 function MIDINoteStream.getValue(channel)
@@ -1049,10 +1117,12 @@ function MIDINoteStream:tick()
 	end
 end
 
-MIDICCStream = DeriveClass(Stream, function(self, control, channel)
+MIDICCStream = DeriveClass(Stream)
+
+function MIDICCStream:ctor(control, channel)
 	self.control = control
 	self.channel = channel or 1
-end)
+end
 
 -- implemented in applause.c, private!
 function MIDICCStream.getValue(control, channel)
@@ -1137,10 +1207,12 @@ local function Blackman(n, window)
 	       alpha*0.5*math.cos((4*math.pi*n)/(window-1))
 end
 
-FIRStream = DeriveClass(Stream, function(self, stream, freq_stream)
+FIRStream = DeriveClass(Stream)
+
+function FIRStream:ctor(stream, freq_stream)
 	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq_stream)
-end)
+end
 
 function FIRStream:tick()
 	local window = {}
@@ -1203,10 +1275,12 @@ local function ddn(f)
 	                  (f < -1e-15 and f > -1e15 and f or 0)
 end
 
-LPFStream = DeriveClass(Stream, function(self, stream, freq)
+LPFStream = DeriveClass(Stream)
+
+function LPFStream:ctor(stream, freq)
 	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq)
-end)
+end
 
 function LPFStream:tick()
 	local a0, b1, b2
@@ -1260,10 +1334,12 @@ function LPFStream:len()
 	return self.streams[1]:len()
 end
 
-HPFStream = DeriveClass(Stream, function(self, stream, freq)
+HPFStream = DeriveClass(Stream)
+
+function HPFStream:ctor(stream, freq)
 	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq)
-end)
+end
 
 function HPFStream:tick()
 	local a0, b1, b2
@@ -1324,12 +1400,14 @@ end
 
 -- NOTE: The quality factor, indirectly proportional
 -- to the passband width
-BPFStream = DeriveClass(Stream, function(self, stream, freq, quality)
+BPFStream = DeriveClass(Stream)
+
+function BPFStream:ctor(stream, freq, quality)
 	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq)
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
-end)
+end
 
 function BPFStream:tick()
 	local a0, b1, b2
@@ -1388,12 +1466,14 @@ end
 
 -- NOTE: The quality factor, indirectly proportional
 -- to the passband width
-BRFStream = DeriveClass(Stream, function(self, stream, freq, quality)
+BRFStream = DeriveClass(Stream)
+
+function BRFStream:ctor(stream, freq, quality)
 	self.streams = {tostream(stream)}
 	self.freq_stream = tostream(freq)
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
-end)
+end
 
 function BRFStream:tick()
 	local a0, b1, b2
@@ -1460,9 +1540,11 @@ ffi.cdef[[
 int kill(int pid, int sig);
 ]]
 
-Client = DeriveClass(null, function(self, pid)
+Client = DeriveClass()
+
+function Client:ctor(pid)
 	self.pid = pid
-end)
+end
 
 function Client:play()
 	ffi.C.kill(self.pid, 10); -- SIGUSR1
