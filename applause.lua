@@ -98,9 +98,9 @@ function DeriveClass(base, ctor)
 
 		setmetatable(obj, self)
 
-		if ctor then ctor(obj, ...) end
-
-		return obj
+		-- Allow constructors to return something else
+		-- than an instance of the class.
+		return ctor and ctor(obj, ...) or obj
 	end
 
 	return class
