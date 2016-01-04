@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE
 #define _POSIX_C_SOURCE 199506L
+#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,10 +8,14 @@
 #include <signal.h>
 #include <unistd.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
+
+#include <arpa/inet.h>
 
 #include <pthread.h>
 
@@ -27,6 +32,9 @@
 #include <jack/ringbuffer.h>
 
 #define LUA_MODULE "applause.lua"
+
+#define CMD_SERVER_IP   "127.0.0.1"
+#define CMD_SERVER_PORT 10000
 
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
 
@@ -684,6 +692,186 @@ traceback(lua_State *L)
 	return 1;
 }
 
+static void
+do_command(lua_State *L, const char *command)
+{
+	int stack_top;
+	char *buffer;
+
+	/* the error hanlder function for lua_pcall() */
+	lua_pushcfunction(L, traceback);
+
+	stack_top = lua_gettop(L);
+
+	/*
+	 * AFAIK, we cannot support automatic printing of values
+	 * returned by expressions.
+	 * The chunk must return something (using `return`).
+	 * We cannot always prepend a `return` since AFAIK it is
+	 * impossible to embedded statements into expressions.
+	 * Therefore we support "=" as a shortcut to "return" just
+	 * like the luajit shell does.
+	 */
+	if (*command == '=') {
+		if (asprintf(&buffer, "return %s", command+1) < 0)
+			buffer = NULL;
+	} else {
+		buffer = strdup(command);
+	}
+	assert(buffer != NULL);
+
+	if (luaL_loadstring(L, buffer) || lua_pcall(L, 0, LUA_MULTRET, -2)) {
+		fprintf(stderr, "Error.\n");
+	}
+
+	free(buffer);
+
+	/*
+	 * Print values left on the stack:
+	 * This includes error messages left by lua_pcall()
+	 */
+	if (lua_gettop(L) > stack_top) {
+		lua_getglobal(L, "print");
+		lua_insert(L, stack_top + 1);
+
+		if (lua_pcall(L, lua_gettop(L) - stack_top - 1, 0, 0)) {
+			fprintf(stderr, "Error executing print().\n");
+			/* try to continue */
+		}
+	}
+
+	/* pop the traceback function */
+	lua_remove(L, -1);
+}
+
+/**
+ * Mutex protecting Lua state access after the command server
+ * has been launched.
+ */
+static pthread_mutex_t lua_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/*
+ * FIXME: This should perhaps be the only interface to the
+ * applause Lua state with the REPL loop implemented as a Lua
+ * script. This solution would simplify the C code and avoid
+ * threading. Also, then we could have multiple running
+ * REPL loops.
+ */
+static void *
+command_server(void *user_data)
+{
+	lua_State *L = user_data;
+	int socket_fd;
+	struct sockaddr_in server;
+
+	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (socket_fd < 0) {
+		perror("socket");
+		return NULL;
+	}
+
+	server.sin_addr.s_addr = inet_addr(CMD_SERVER_IP);
+	server.sin_family = AF_INET;
+	server.sin_port = htons(CMD_SERVER_PORT);
+
+	if (bind(socket_fd, (struct sockaddr *)&server,
+	    sizeof(server)) < 0) {
+		perror("bind");
+		close(socket_fd);
+		return NULL;
+	}
+
+	if (listen(socket_fd, 1) < 0) {
+		perror("listen");
+		close(socket_fd);
+		return NULL;
+	}
+
+	for (;;) {
+		char length_buf[5 + 1];
+		size_t length;
+		char *command;
+
+		int old_stdout, old_stderr;
+
+		int client_fd = accept(socket_fd, NULL, NULL);
+
+		if (client_fd < 0) {
+			perror("accept");
+			break;
+		}
+
+		if (read(client_fd, length_buf, sizeof(length_buf)) <
+		    sizeof(length_buf)) {
+			/* just close the connection and continue */
+			/*
+			 * FIXME: We might want to handle errors
+			 * (e.g. signal interruptions)
+			 */
+			close(client_fd);
+			continue;
+		}
+
+		/* parse message length */
+		length = atoi(length_buf);
+		command = malloc(length);
+		assert(command != NULL);
+
+		if (read(client_fd, command, length) < length) {
+			/* just close the connection and continue */
+			/*
+			 * FIXME: We might want to handle errors
+			 * (e.g. signal interruptions)
+			 */
+			free(command);
+			close(client_fd);
+			continue;
+		}
+
+		pthread_mutex_lock(&lua_mutex);
+
+		/*
+		 * Redirect stdout and stderr to client_fd.
+		 * This way, we capture all the output that the command
+		 * may have.
+		 */
+		old_stdout = dup(1);
+		close(1);
+		dup2(client_fd, 1);
+		old_stderr = dup(2);
+		close(2);
+		dup2(client_fd, 2);
+
+		/*
+		 * FIXME: It would be nice to catch broken sockets
+		 * (e.g. waiting for play() has been interrupted), in order
+		 * to set the interrupted flag.
+		 * However it seems we'd need another thread for that running
+		 * do_command(), so we can select() the fd and eventually
+		 * join the thread.
+		 */
+		do_command(L, command);
+		free(command);
+
+		/*
+		 * Restore stdout/stderr.
+		 */
+		close(1);
+		dup2(old_stdout, 1);
+		close(old_stdout);
+		close(2);
+		dup2(old_stderr, 2);
+		close(old_stderr);
+
+		pthread_mutex_unlock(&lua_mutex);
+
+		close(client_fd);
+	}
+
+	close(socket_fd);
+	return NULL;
+}
+
 typedef struct NativeMethod {
 	const char *class_name;
 	const char *method_name;
@@ -707,6 +895,8 @@ main(int argc, char **argv)
 
 	lua_State *L;
 
+	pthread_t command_server_thread;
+
 	/*
 	 * FIXME: Support --help
 	 */
@@ -725,6 +915,9 @@ main(int argc, char **argv)
 	sigaction(SIGINT, &signal_action, NULL);
 	sigaction(SIGUSR1, &signal_action, NULL);
 	sigaction(SIGUSR2, &signal_action, NULL);
+
+	signal_action.sa_handler = SIG_IGN;
+	sigaction(SIGPIPE, &signal_action, NULL);
 
 	L = luaL_newstate();
 	if (!L) {
@@ -764,13 +957,19 @@ main(int argc, char **argv)
 	lua_setglobal(L, "samplerate");
 
 	/*
-	 * Push the error handler function. Will be used in the REPL
-	 * loop below.
+	 * Launch the command server.
 	 */
-	lua_pushcfunction(L, traceback);
+	if (pthread_create(&command_server_thread, NULL, command_server, L)) {
+		perror("pthread_create");
+		exit(EXIT_FAILURE);
+	}
 
+	/*
+	 * Main REPL loop.
+	 * Since the command server has been launched, all lua state access
+	 * must be synchronized using lua_mutex.
+	 */
 	for (;;) {
-		int stack_top;
 		/*
 		 * FIXME: Get global _PROMPT or _PROMPT2
 		 */
@@ -778,49 +977,22 @@ main(int argc, char **argv)
 
 		if (!line) {
 			putchar('\n');
-			exit(EXIT_SUCCESS);
+			break;
 		}
 
-		/*
-		 * Push print command
-		 */
-		lua_getglobal(L, "print");
-		stack_top = lua_gettop(L);
-
-		/*
-		 * AFAIK, we cannot support automatic printing of values
-		 * returned by expressions.
-		 * The chunk must return something (using `return`).
-		 * We cannot always prepend a `return` since AFAIK it is
-		 * impossible to embedded statements into expressions.
-		 * Therefore we support "=" as a shortcut to "return" just
-		 * like the luajit shell does.
-		 */
-		if (*line == '=') {
-			char *buf = malloc(7 + strlen(line));
-			sprintf(buf, "return %s", line+1);
-			free(line);
-			line = buf;
-		}
-
-		if (luaL_loadstring(L, line) || lua_pcall(L, 0, LUA_MULTRET, -3)) {
-			fprintf(stderr, "Error.\n");
-		}
-
-		/*
-		 * Automatically print values left on the stack:
-		 * This includes error messages left by lua_pcall()
-		 */
-		if (lua_pcall(L, lua_gettop(L) - stack_top, 0, 0)) {
-			fprintf(stderr, "Error executing print().\n");
-			/* try to continue */
-		}
+		pthread_mutex_lock(&lua_mutex);
+		do_command(L, line);
+		pthread_mutex_unlock(&lua_mutex);
 
 		if (*line)
 			add_history(line);
 
 		free(line);
 	}
+
+	/*
+	 * FIXME: Shut down connection server.
+	 */
 
 	svsem_free(buffer_sem);
 

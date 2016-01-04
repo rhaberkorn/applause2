@@ -1,0 +1,19 @@
+
+! Applause client: Evaluate command !
+@#ae{
+  X[applause.output]
+  EQ[applause.output]
+  Z\ 5-.<I > 10I
+  HECnc 127.0.0.1 10000 J
+  Z"= Q*U* '
+}
+
+! Print command !
+@#ap{
+  X[applause.output]
+  EQ[applause.output]
+  I= R
+  Z\ 5-.<I > 10I
+  HECnc 127.0.0.1 10000 J
+  Z"= Q*U* '
+}
