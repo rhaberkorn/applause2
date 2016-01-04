@@ -135,6 +135,10 @@ function Stream:sync()
 	return SyncedStream:new(self)
 end
 
+function Stream:rep(repeats)
+	return RepeatStream:new(self, repeats)
+end
+
 function Stream:map(fnc)
 	return MapStream:new(self, fnc)
 end
@@ -639,6 +643,35 @@ function ConcatStream:len()
 	end
 
 	return len
+end
+
+RepeatStream = DeriveClass(Stream, function(self, stream, repeats)
+	self.streams = {tostream(stream)}
+	self.repeats = repeats or math.huge
+end)
+
+function RepeatStream:tick()
+	local i = 1
+	local stream_tick = self.streams[1]:tick()
+	local repeats = self.repeats
+
+	return function()
+		while i <= repeats do
+			local sample = stream_tick()
+			if sample then return sample end
+
+			-- next iteration
+			i = i + 1
+			-- FIXME: The tick() method itself may be too
+			-- inefficient for realtime purposes.
+			-- Also, we may slowly leak memory.
+			stream_tick = self.streams[1]:tick()
+		end
+	end
+end
+
+function RepeatStream:len()
+	return self.streams[1]:len() * self.repeats
 end
 
 -- Ravel operation inspired by APL.
