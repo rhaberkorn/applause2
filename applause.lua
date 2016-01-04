@@ -67,6 +67,8 @@ function msec(x) return sec((x or 1)/1000) end
 local clock_signal = false
 function clockCycle() clock_signal = not clock_signal end
 
+-- FIXME: Inconsistent naming. Use all-lower case for functions
+-- and methods?
 function DeriveClass(base)
 	local class = {base = base}
 
@@ -854,13 +856,14 @@ end
 IndexStream = DeriveClass(Stream)
 
 function IndexStream:ctor(stream, index_stream)
-	self.streams = {tostream(stream)}
-	self.index_stream = tostream(index_stream)
+	-- NOTE: For stream resetting to work and to simplify
+	-- future optimization passes, all streams are in the streams array
+	self.streams = {tostream(stream), tostream(index_stream)}
 end
 
 function IndexStream:tick()
 	local stream_tick = self.streams[1]:tick()
-	local index_tick = self.index_stream:tick()
+	local index_tick = self.streams[2]:tick()
 
 	local stream_len = self.streams[1]:len()
 
@@ -898,7 +901,8 @@ function IndexStream:tick()
 end
 
 function IndexStream:len()
-	return self.index_stream:len()
+	-- Length of the indexing stream
+	return self.streams[2]:len()
 end
 
 MapStream = DeriveClass(Stream)
@@ -1210,8 +1214,9 @@ end
 FIRStream = DeriveClass(Stream)
 
 function FIRStream:ctor(stream, freq_stream)
-	self.streams = {tostream(stream)}
-	self.freq_stream = tostream(freq_stream)
+	-- NOTE: For stream resetting to work and to simplify
+	-- future optimization passes, all streams are in the streams array
+	self.streams = {tostream(stream), tostream(freq_stream)}
 end
 
 function FIRStream:tick()
@@ -1229,7 +1234,7 @@ function FIRStream:tick()
 	for i = 1, window_size do blackman[i] = Blackman(i-1, window_size) end
 
 	local tick = self.streams[1]:tick()
-	local freq_tick = self.freq_stream:tick()
+	local freq_tick = self.streams[2]:tick()
 
 	return function()
 		-- fill buffer (initial)
@@ -1278,8 +1283,9 @@ end
 LPFStream = DeriveClass(Stream)
 
 function LPFStream:ctor(stream, freq)
-	self.streams = {tostream(stream)}
-	self.freq_stream = tostream(freq)
+	-- NOTE: For stream resetting to work and to simplify
+	-- future optimization passes, all streams are in the streams array
+	self.streams = {tostream(stream), tostream(freq)}
 end
 
 function LPFStream:tick()
@@ -1294,7 +1300,7 @@ function LPFStream:tick()
 	local tan = math.tan
 
 	local tick = self.streams[1]:tick()
-	local freq_tick = self.freq_stream:tick()
+	local freq_tick = self.streams[2]:tick()
 	local cur_freq = nil
 
 	return function()
@@ -1337,8 +1343,9 @@ end
 HPFStream = DeriveClass(Stream)
 
 function HPFStream:ctor(stream, freq)
-	self.streams = {tostream(stream)}
-	self.freq_stream = tostream(freq)
+	-- NOTE: For stream resetting to work and to simplify
+	-- future optimization passes, all streams are in the streams array
+	self.streams = {tostream(stream), tostream(freq)}
 end
 
 function HPFStream:tick()
@@ -1353,7 +1360,7 @@ function HPFStream:tick()
 	local tan = math.tan
 
 	local tick = self.streams[1]:tick()
-	local freq_tick = self.freq_stream:tick()
+	local freq_tick = self.streams[2]:tick()
 	local cur_freq = nil
 
 	-- NOTE: Very similar to LPFStream.tick()
@@ -1403,8 +1410,9 @@ end
 BPFStream = DeriveClass(Stream)
 
 function BPFStream:ctor(stream, freq, quality)
-	self.streams = {tostream(stream)}
-	self.freq_stream = tostream(freq)
+	-- NOTE: For stream resetting to work and to simplify
+	-- future optimization passes, all streams are in the streams array
+	self.streams = {tostream(stream), tostream(freq)}
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
 end
@@ -1422,7 +1430,7 @@ function BPFStream:tick()
 	local cos = math.cos
 
 	local tick = self.streams[1]:tick()
-	local freq_tick = self.freq_stream:tick()
+	local freq_tick = self.streams[2]:tick()
 	local cur_freq = nil
 
 	return function()
@@ -1469,8 +1477,7 @@ end
 BRFStream = DeriveClass(Stream)
 
 function BRFStream:ctor(stream, freq, quality)
-	self.streams = {tostream(stream)}
-	self.freq_stream = tostream(freq)
+	self.streams = {tostream(stream), tostream(freq)}
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
 end
@@ -1488,7 +1495,7 @@ function BRFStream:tick()
 	local cos = math.cos
 
 	local tick = self.streams[1]:tick()
-	local freq_tick = self.freq_stream:tick()
+	local freq_tick = self.streams[2]:tick()
 	local cur_freq = nil
 
 	-- NOTE: Very similar to BPFStream.tick()
