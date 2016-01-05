@@ -15,6 +15,10 @@ CFLAGS += $(LUA_CFLAGS) $(READLINE_CFLAGS) $(JACK_CFLAGS)
 LDFLAGS += $(LUA_LDFLAGS) $(READLINE_LDFLAGS) $(JACK_LDFLAGS) \
            -lpthread
 
+# For exporting function from applause.c that can be called
+# with the LuaJIT FFI interface:
+LDFLAGS += -rdynamic
+
 all : applause
 
 applause : applause.o

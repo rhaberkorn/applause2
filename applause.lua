@@ -1,6 +1,9 @@
 local sndfile = require "sndfile"
-local ffi = require "ffi"
 local bit = require "bit"
+local ffi = require "ffi"
+-- According to LuaJIT docs, it makes sense to cache
+-- the FFI namespace
+local C = ffi.C
 
 -- Make table.new() available (a LuaJIT extension)
 require "table.new"
@@ -35,15 +38,29 @@ function benchmark(fnc)
 	local t1 = ffi.new("struct timespec[1]")
 	local t2 = ffi.new("struct timespec[1]")
 
-	ffi.C.clock_gettime("CLOCK_PROCESS_CPUTIME_ID", t1)
+	C.clock_gettime("CLOCK_PROCESS_CPUTIME_ID", t1)
 	fnc()
-	ffi.C.clock_gettime("CLOCK_PROCESS_CPUTIME_ID", t2)
+	C.clock_gettime("CLOCK_PROCESS_CPUTIME_ID", t2)
 
 	local t1_ms = t1[0].tv_sec*1000 + t1[0].tv_nsec/1000000
 	local t2_ms = t2[0].tv_sec*1000 + t2[0].tv_nsec/1000000
 
 	print("Elapsed CPU time: "..(t2_ms - t1_ms).."ms")
 end
+
+--
+-- Define the Lua FFI part of Applause's C core.
+-- These functions and types are defined in applause.c
+--
+ffi.cdef[[
+enum applause_audio_state {
+	APPLAUSE_AUDIO_OK = 0,
+	APPLAUSE_AUDIO_INTERRUPTED,
+	APPLAUSE_AUDIO_XRUN
+};
+
+enum applause_audio_state applause_push_sample(double sample_double);
+]]
 
 -- Sample rate
 -- This is overwritten by the C core
@@ -62,10 +79,8 @@ function msec(x) return sec((x or 1)/1000) end
 -- A clock signal is necessary to "trigger" the recalculation
 -- of a stream's current sample.
 -- The clock signal is a boolean oscillating between true and
--- false. The global function is for advancing the clock more
--- or less efficiently from the play() method implemented in C.
+-- false.
 local clock_signal = false
-function clockCycle() clock_signal = not clock_signal end
 
 -- FIXME: Inconsistent naming. Use all-lower case for functions
 -- and methods?
@@ -371,9 +386,49 @@ function Stream:len()
 	return math.huge -- infinity
 end
 
--- implemented in applause.c
 function Stream:play()
-	error("C function not registered!")
+	self:reset()
+
+	local tick = self:tick()
+
+	-- Make sure JIT compilation is turned on for the generator function
+	-- and all subfunctions.
+	-- This should not be necessary theoretically.
+	jit.on(true, true)
+	jit.on(tick, true)
+
+	-- Perform garbage collection cycle and turn it off
+	-- temporarily. This improves the realtime properties
+	-- of the sample generation loop below.
+	collectgarbage("collect")
+	collectgarbage("stop")
+
+	local state
+	repeat
+		-- Advance clock
+		clock_signal = not clock_signal
+
+		local sample = tick()
+		if not sample then break end
+
+		-- FIXME: What if the sample is not a number,
+		-- perhaps we should check that here
+		state = C.applause_push_sample(sample)
+
+		-- React to buffer underruns.
+		-- This is done here instead of in the realtime thread
+		-- even though it is already overloaded, so as not to
+		-- affect other applications in the Jack graph.
+		if state == C.APPLAUSE_AUDIO_XRUN then
+			io.stderr:write("WARNING: Buffer underrun detected\n")
+		end
+	until state == C.APPLAUSE_AUDIO_INTERRUPTED
+
+	collectgarbage("restart")
+
+	if state == C.APPLAUSE_AUDIO_INTERRUPTED then
+		error("SIGINT received", 2)
+	end
 end
 
 -- implemented in applause.c
@@ -394,11 +449,13 @@ function Stream:save(filename, format)
 	local tick = self:tick()
 
 	while true do
-		clockCycle()
+		clock_signal = not clock_signal
 
 		local sample = tick()
 		if not sample then break end
 
+		-- FIXME: What if the sample is not a number,
+		-- perhaps we should check that here
 		hnd:write(sample)
 	end
 
@@ -416,7 +473,7 @@ function Stream:totable()
 	local vector = table.new(self:len(), 0)
 
 	while true do
-		clockCycle()
+		clock_signal = not clock_signal
 
 		local value = tick()
 		if not value then break end
@@ -1554,15 +1611,15 @@ function Client:ctor(pid)
 end
 
 function Client:play()
-	ffi.C.kill(self.pid, 10); -- SIGUSR1
+	C.kill(self.pid, 10); -- SIGUSR1
 end
 
 function Client:stop()
-	ffi.C.kill(self.pid, 12); -- SIGUSR2
+	C.kill(self.pid, 12); -- SIGUSR2
 end
 
 function Client:kill()
-	ffi.C.kill(self.pid, 15); -- SIGTERM
+	C.kill(self.pid, 15); -- SIGTERM
 end
 
 Client.__gc = Client.kill

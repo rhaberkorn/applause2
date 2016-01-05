@@ -394,6 +394,7 @@ init_audio(int buffer_size)
 	return 0;
 }
 
+/* FIXME: Rewrite as an exported FFI-callable function */
 static int
 l_MIDIVelocityStream_getValue(lua_State *L)
 {
@@ -429,6 +430,7 @@ l_MIDIVelocityStream_getValue(lua_State *L)
 	return 1;
 }
 
+/* FIXME: Rewrite as an exported FFI-callable function */
 static int
 l_MIDINoteStream_getValue(lua_State *L)
 {
@@ -461,6 +463,7 @@ l_MIDINoteStream_getValue(lua_State *L)
 	return 1;
 }
 
+/* FIXME: Rewrite as an exported FFI-callable function */
 static int
 l_MIDICCStream_getValue(lua_State *L)
 {
@@ -496,117 +499,54 @@ l_MIDICCStream_getValue(lua_State *L)
 	return 1;
 }
 
-static int
-l_Stream_play(lua_State *L)
+enum applause_audio_state {
+	APPLAUSE_AUDIO_OK = 0,
+	APPLAUSE_AUDIO_INTERRUPTED,
+	APPLAUSE_AUDIO_XRUN
+};
+
+/**
+ * Push one Jack sample into the ring buffer.
+ *
+ * This function should be called from the Stream:play()
+ * implementation, which is faster than calling Lua functions
+ * from a C implementation of Stream:play() using the Lua C API
+ * (supposedly, I could not reproduce this).
+ *
+ * @param sample_double The audio sample as a double (compatible
+ *                      with lua_Number).
+ *                      This is speed relevant since otherwise
+ *                      LuaJIT tries to translate to Jack's default
+ *                      float type.
+ */
+enum applause_audio_state
+applause_push_sample(double sample_double)
 {
-	int top = lua_gettop(L);
-
-	luaL_argcheck(L, top == 1, top, "Stream object expected");
-	luaL_checktype(L, 1, LUA_TTABLE);
-
-	/* get reset() method */
-	lua_getfield(L, 1, "reset");
-	luaL_checktype(L, -1, LUA_TFUNCTION);
-	/* duplicate object table since we have to call self.reset(self) */
-	lua_pushvalue(L, 1);
-	lua_call(L, 1, 0);
-
-	/* get tick() method */
-	lua_getfield(L, 1, "tick");
-	luaL_checktype(L, -1, LUA_TFUNCTION);
-	/* duplicate object table since we have to call self.tick(self) */
-	lua_pushvalue(L, 1);
-	lua_call(L, 1, 1);
-	/* the tick generator function should now be on top of the stack */
-	luaL_checktype(L, -1, LUA_TFUNCTION);
+	jack_default_audio_sample_t sample =
+			(jack_default_audio_sample_t)sample_double;
 
 	/*
-	 * Make sure JIT compilation is turned on for the generator function
-	 * and all subfunctions.
-	 * This should not be necessary theoretically.
+	 * We are about to "consume" one free sample in the buffer.
+	 * This can block when the buffer is full.
+	 * After this operation, there is __at least__ one sample free
+	 * in buffer since jack_process() will only read from the
+	 * buffer.
 	 */
-	luaJIT_setmode(L, -1, LUAJIT_MODE_ALLFUNC | LUAJIT_MODE_ON);
+	svsem_op(buffer_sem, -(int)sizeof(sample));
 
-	/*
-	 * Get global cycleClock() function. It exists so we can
-	 * conveniently advance the clock from the native C method
-	 * without calling lua_setfield() and access a class table
-	 * from generator methods at sample rate.
-	 */
-	lua_getglobal(L, "clockCycle");
+	jack_ringbuffer_write(buffer, (const char *)&sample,
+	                      sizeof(sample));
 
-	/*
-	 * Perform garbage collection cycle and turn it off
-	 * temporarily. This improves the realtime properties
-	 * of the sample generation loop below.
-	 */
-	lua_gc(L, LUA_GCCOLLECT, 0);
-	lua_gc(L, LUA_GCSTOP, 0);
-
-	interrupted = 0;
-
-	while (!interrupted) {
-		jack_default_audio_sample_t sample;
-
-		/*
-		 * React to buffer underruns.
-		 * This is done here instead of in the realtime thread
-		 * even though it is already overloaded, so as not to
-		 * affect other applications in the Jack graph.
-		 */
-		if (buffer_xrun) {
-			fprintf(stderr, "WARNING: Buffer underrun detected!\n");
-			buffer_xrun = 0;
-		}
-
-		/*
-		 * Duplicate and call clockCycle() function.
-		 * This is more efficient than calling lua_getglobal()
-		 * at sample rate.
-		 */
-		lua_pushvalue(L, -1);
-		lua_call(L, 0, 0);
-
-		/* duplicate generator function */
-		lua_pushvalue(L, -2);
-		/* generate next sample */
-		lua_call(L, 0, 1);
-
-		if (lua_isnil(L, -1))
-			/* stream has ended */
-			break;
-
-		/* copy sample into ring buffer */
-		/*
-		 * FIXME: What if sample isn't a number. This
-		 * should be handled. But don't forget to restart
-		 * the garbage collector
-		 */
-		sample = (jack_default_audio_sample_t)lua_tonumber(L, -1);
-
-		/*
-		 * We are about to "consume" one free sample in the buffer.
-		 * This can block when the buffer is full.
-		 * After this operation, there is __at least__ one sample free
-		 * in buffer since jack_process() will only read from the
-		 * buffer.
-		 */
-		svsem_op(buffer_sem, -(int)sizeof(sample));
-
-		jack_ringbuffer_write(buffer, (const char *)&sample,
-		                      sizeof(sample));
-
-		/* pop sample, the function dup has already been popped */
-		lua_pop(L, 1);
+	if (interrupted) {
+		interrupted = 0;
+		return APPLAUSE_AUDIO_INTERRUPTED;
+	}
+	if (buffer_xrun) {
+		buffer_xrun = 0;
+		return APPLAUSE_AUDIO_XRUN;
 	}
 
-	lua_gc(L, LUA_GCRESTART, 0);
-
-	if (interrupted)
-		return luaL_error(L, "SIGINT received");
-
-	/* any remaining stack elements are automatically popped */
-	return 0;
+	return APPLAUSE_AUDIO_OK;
 }
 
 static int
@@ -879,7 +819,6 @@ typedef struct NativeMethod {
 } NativeMethod;
 
 static const NativeMethod native_methods[] = {
-	{"Stream",             "play",     l_Stream_play},
 	{"Stream",             "fork",     l_Stream_fork},
 	{"MIDIVelocityStream", "getValue", l_MIDIVelocityStream_getValue},
 	{"MIDINoteStream",     "getValue", l_MIDINoteStream_getValue},
