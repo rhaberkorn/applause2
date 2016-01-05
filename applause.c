@@ -638,6 +638,20 @@ do_command(lua_State *L, const char *command)
 	int stack_top;
 	char *buffer;
 
+	/*
+	 * EXPERIMENTAL: I found that performance decreases
+	 * progressively when running one and the same command.
+	 * This is probably because the limited space for the
+	 * compiled code gets filled up rapidly and LuaJIT
+	 * resorts to using the interpreter.
+	 * This flashes the entire code cache for every
+	 * new command and improves matters.
+	 * TODO: It would probably be a good idea to increase the
+	 * total size of the code cache and give some indication
+	 * of its usage (e.g. in the prompt).
+	 */
+	luaJIT_setmode(L, 0, LUAJIT_MODE_ENGINE | LUAJIT_MODE_FLUSH);
+
 	/* the error hanlder function for lua_pcall() */
 	lua_pushcfunction(L, traceback);
 

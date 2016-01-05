@@ -400,6 +400,11 @@ function Stream:play()
 	-- Perform garbage collection cycle and turn it off
 	-- temporarily. This improves the realtime properties
 	-- of the sample generation loop below.
+	-- FIXME: Since stopping the garbage collector here
+	-- (in the Lua/C code this did not happen!?), memory
+	-- consumption increases constantly. Perhaps it is a
+	-- good idea to tweak garbage collection during the
+	-- generator loop.
 	collectgarbage("collect")
 	collectgarbage("stop")
 
