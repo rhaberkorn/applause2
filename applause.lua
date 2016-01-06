@@ -60,6 +60,10 @@ enum applause_audio_state {
 };
 
 enum applause_audio_state applause_push_sample(double sample_double);
+
+int applause_midi_velocity_getvalue(int note, int channel);
+int applause_midi_note_getvalue(int channel);
+int applause_midi_cc_getvalue(int control, int channel);
 ]]
 
 -- Sample rate
@@ -1140,21 +1144,33 @@ MIDIVelocityStream = DeriveClass(Stream)
 
 function MIDIVelocityStream:ctor(note, channel)
 	self.note = note
+	assert(0 <= self.note and self.note <= 127,
+	       "MIDI note out of range (0 <= x <= 127)")
+
 	self.channel = channel or 1
+	assert(1 <= self.channel and self.channel <= 16,
+	       "MIDI channel out of range (1 <= x <= 16)")
 end
 
--- implemented in applause.c, private!
+-- This is for calling from external code (e.g. from
+-- streams supporting MIDI natively)
 function MIDIVelocityStream.getValue(note, channel)
-	error("C function not registered!")
+	-- NOTE: The native function assert() for invalid
+	-- notes or channels to avoid segfaults
+	assert(0 <= note and note <= 127,
+	       "MIDI note out of range (0 <= x <= 127)")
+	assert(1 <= channel and channel <= 16,
+	       "MIDI channel out of range (1 <= x <= 16)")
+
+	return C.applause_midi_velocity_getvalue(note, channel)
 end
 
 function MIDIVelocityStream:tick()
 	local note = self.note
 	local channel = self.channel
-	local getValue = self.getValue
 
 	return function()
-		return getValue(note, channel)
+		return C.applause_midi_velocity_getvalue(note, channel)
 	end
 end
 
@@ -1167,19 +1183,26 @@ MIDINoteStream = DeriveClass(Stream)
 
 function MIDINoteStream:ctor(channel)
 	self.channel = channel or 1
+	assert(1 <= self.channel and self.channel <= 16,
+	       "MIDI channel out of range (1 <= x <= 16)")
 end
 
--- implemented in applause.c, private!
+-- This is for calling from external code (e.g. from
+-- streams supporting MIDI natively)
 function MIDINoteStream.getValue(channel)
-	error("C function not registered!")
+	-- NOTE: The native function assert() for invalid
+	-- notes or channels to avoid segfaults
+	assert(1 <= channel and channel <= 16,
+	       "MIDI channel out of range (1 <= x <= 16)")
+
+	return C.applause_midi_note_getvalue(channel)
 end
 
 function MIDINoteStream:tick()
 	local channel = self.channel
-	local getValue = self.getValue
 
 	return function()
-		return getValue(channel)
+		return C.applause_midi_note_getvalue(channel)
 	end
 end
 
@@ -1188,20 +1211,32 @@ MIDICCStream = DeriveClass(Stream)
 function MIDICCStream:ctor(control, channel)
 	self.control = control
 	self.channel = channel or 1
+
+	assert(0 <= self.control and self.control <= 127,
+	       "MIDI control number out of range (0 <= x <= 127)")
+	assert(1 <= self.channel and self.channel <= 16,
+	       "MIDI channel out of range (1 <= x <= 16)")
 end
 
--- implemented in applause.c, private!
+-- This is for calling from external code (e.g. from
+-- streams supporting MIDI natively)
 function MIDICCStream.getValue(control, channel)
-	error("C function not registered!")
+	-- NOTE: The native function assert() for invalid
+	-- notes or channels to avoid segfaults
+	assert(0 <= control and control <= 127,
+	       "MIDI control number out of range (0 <= x <= 127)")
+	assert(1 <= channel and channel <= 16,
+	       "MIDI channel out of range (1 <= x <= 16)")
+
+	return C.applause_midi_cc_getvalue(control, channel)
 end
 
 function MIDICCStream:tick()
 	local control = self.control
 	local channel = self.channel
-	local getValue = self.getValue
 
 	return function()
-		return getValue(control, channel)
+		return C.applause_midi_cc_getvalue(control, channel)
 	end
 end
 

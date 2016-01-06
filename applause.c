@@ -394,23 +394,25 @@ init_audio(int buffer_size)
 	return 0;
 }
 
-/* FIXME: Rewrite as an exported FFI-callable function */
-static int
-l_MIDIVelocityStream_getValue(lua_State *L)
+/**
+ * Get the MIDI velocity of the `note` last
+ * triggered on `channel` due to a NOTE ON message.
+ * This function is meant to be called using LuaJIT's
+ * FFI interface.
+ */
+int
+applause_midi_velocity_getvalue(int note, int channel)
 {
-	int top = lua_gettop(L);
-	lua_Integer channel, note, value;
+	int value;
 
-	luaL_argcheck(L, top == 2, top, "Note and channel number expected");
-	luaL_checktype(L, 1, LUA_TNUMBER);
-	luaL_checktype(L, 2, LUA_TNUMBER);
+	/*
+	 * It's enough to assert() here since this
+	 * function should only be called by the
+	 * MIDIVelocityStream generator.
+	 */
+	assert(0 <= note && note <= 127);
+	assert(1 <= channel && channel <= 16);
 
-	note = lua_tointeger(L, 1);
-	luaL_argcheck(L, 0 <= note && note <= 127, note,
-	              "Invalid note number range (0 <= x <= 127)");
-	channel = lua_tointeger(L, 2);
-	luaL_argcheck(L, 1 <= channel && channel <= 16, channel,
-	              "Invalid channel range (1 <= x <= 16)");
 	/* The NOTE arrays are 0-based */
 	channel--;
 
@@ -426,23 +428,30 @@ l_MIDIVelocityStream_getValue(lua_State *L)
 	value = midi_notes[channel][note];
 	pthread_mutex_unlock(&midi_mutex);
 
-	lua_pushinteger(L, value);
-	return 1;
+	return value;
 }
 
-/* FIXME: Rewrite as an exported FFI-callable function */
-static int
-l_MIDINoteStream_getValue(lua_State *L)
+/**
+ * Get the MIDI note and velocity of the note last
+ * triggered on `channel`.
+ * This function is meant to be called using LuaJIT's
+ * FFI interface.
+ *
+ * @return A MIDI note number (least significant byte) and
+ *         velocity (second least significant byte).
+ */
+int
+applause_midi_note_getvalue(int channel)
 {
-	int top = lua_gettop(L);
-	lua_Integer channel, value;
+	int value;
 
-	luaL_argcheck(L, top == 1, top, "Channel number expected");
-	luaL_checktype(L, 1, LUA_TNUMBER);
+	/*
+	 * It's enough to assert() here since this
+	 * function should only be called by the
+	 * MIDINoteStream generator.
+	 */
+	assert(1 <= channel && channel <= 16);
 
-	channel = lua_tointeger(L, 1);
-	luaL_argcheck(L, 1 <= channel && channel <= 16, channel,
-	              "Invalid channel range (1 <= x <= 16)");
 	/* The NOTE arrays are 0-based */
 	channel--;
 
@@ -459,27 +468,28 @@ l_MIDINoteStream_getValue(lua_State *L)
 	        (midi_notes[channel][midi_notes_last[channel]] << 8);
 	pthread_mutex_unlock(&midi_mutex);
 
-	lua_pushinteger(L, value);
-	return 1;
+	return value;
 }
 
-/* FIXME: Rewrite as an exported FFI-callable function */
-static int
-l_MIDICCStream_getValue(lua_State *L)
+/**
+ * Get the last value of the MIDI control `control`
+ * on `channel`.
+ * This function is meant to be called using LuaJIT's
+ * FFI interface.
+ */
+int
+applause_midi_cc_getvalue(int control, int channel)
 {
-	int top = lua_gettop(L);
-	lua_Integer channel, control, value;
+	int value;
 
-	luaL_argcheck(L, top == 2, top, "Control and channel number expected");
-	luaL_checktype(L, 1, LUA_TNUMBER);
-	luaL_checktype(L, 2, LUA_TNUMBER);
+	/*
+	 * It's enough to assert() here since this
+	 * function should only be called by the
+	 * MIDICCStream generator.
+	 */
+	assert(0 <= control && control <= 127);
+	assert(1 <= channel && channel <= 16);
 
-	control = lua_tointeger(L, 1);
-	luaL_argcheck(L, 0 <= control && control <= 127, control,
-	              "Invalid control number range (0 <= x <= 127)");
-	channel = lua_tointeger(L, 2);
-	luaL_argcheck(L, 1 <= channel && channel <= 16, channel,
-	              "Invalid channel range (1 <= x <= 16)");
 	/* The NOTE arrays are 0-based */
 	channel--;
 
@@ -495,8 +505,7 @@ l_MIDICCStream_getValue(lua_State *L)
 	value = midi_controls[channel][control];
 	pthread_mutex_unlock(&midi_mutex);
 
-	lua_pushinteger(L, value);
-	return 1;
+	return value;
 }
 
 enum applause_audio_state {
@@ -834,9 +843,6 @@ typedef struct NativeMethod {
 
 static const NativeMethod native_methods[] = {
 	{"Stream",             "fork",     l_Stream_fork},
-	{"MIDIVelocityStream", "getValue", l_MIDIVelocityStream_getValue},
-	{"MIDINoteStream",     "getValue", l_MIDINoteStream_getValue},
-	{"MIDICCStream",       "getValue", l_MIDICCStream_getValue},
 	{NULL, NULL, NULL}
 };
 
