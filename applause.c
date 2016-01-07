@@ -886,12 +886,16 @@ main(int argc, char **argv)
 
 	luaL_openlibs(L);
 
-	if (luaL_loadfile(L, LUA_MODULE) || lua_pcall(L, 0, 0, 0)) {
-		/* FIXME: pop error message */
-		fprintf(stderr, "Error loading Lua module %s.\n",
-		        LUA_MODULE);
+	lua_pushcfunction(L, traceback);
+
+	if (luaL_loadfile(L, LUA_MODULE) || lua_pcall(L, 0, 0, -2)) {
+		fprintf(stderr, "Error loading Lua module %s: %s\n",
+		        LUA_MODULE, lua_tostring(L, -1));
 		exit(EXIT_FAILURE);
 	}
+
+	/* remove traceback function */
+	lua_remove(L, -1);
 
 	init_audio(buffer_size);
 
