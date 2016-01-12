@@ -8,10 +8,18 @@ local C = ffi.C
 -- Make table.new() available (a LuaJIT extension)
 require "table.new"
 
+-- Useful in order to make the module reloadable
+local function cdef_safe(def)
+	local state, msg = pcall(ffi.cdef, def)
+	if not state then
+		io.stderr:write("WARNING: ", msg, "\n")
+	end
+end
+
 --
 -- Define C functions for benchmarking (POSIX libc)
 --
-ffi.cdef[[
+cdef_safe[[
 typedef long time_t;
 
 struct timespec {
@@ -52,7 +60,7 @@ end
 -- Define the Lua FFI part of Applause's C core.
 -- These functions and types are defined in applause.c
 --
-ffi.cdef[[
+cdef_safe[[
 enum applause_audio_state {
 	APPLAUSE_AUDIO_OK = 0,
 	APPLAUSE_AUDIO_INTERRUPTED,
@@ -85,6 +93,13 @@ function msec(x) return sec((x or 1)/1000) end
 -- The clock signal is a boolean oscillating between true and
 -- false.
 local clock_signal = false
+
+-- Reload the main module: Useful for hacking it without
+-- restarting applause
+function reload()
+	dofile "applause.lua"
+	collectgarbage()
+end
 
 -- FIXME: Inconsistent naming. Use all-lower case for functions
 -- and methods?
@@ -1673,7 +1688,7 @@ end
 -- and works only with clients created via Stream.fork()
 --
 
-ffi.cdef[[
+cdef_safe[[
 int kill(int pid, int sig);
 ]]
 
