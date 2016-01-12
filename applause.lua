@@ -445,14 +445,7 @@ function Stream:fork()
 	error("C function not registered!")
 end
 
-function Stream:save(filename, format)
-	if self:len() == math.huge then
-		error("Cannot save infinite stream")
-	end
-
-	local hnd = sndfile:new(filename, "SFM_WRITE",
-	                        samplerate, 1, format)
-
+function Stream:foreach(fnc)
 	self:reset()
 
 	local tick = self:tick()
@@ -463,10 +456,24 @@ function Stream:save(filename, format)
 		local sample = tick()
 		if not sample then break end
 
+		fnc(sample)
+	end
+end
+
+-- TODO: Use a buffer to improve perfomance (e.g. 1024 samples)
+function Stream:save(filename, format)
+	if self:len() == math.huge then
+		error("Cannot save infinite stream")
+	end
+
+	local hnd = sndfile:new(filename, "SFM_WRITE",
+	                        samplerate, 1, format)
+
+	self:foreach(function(sample)
 		-- FIXME: What if the sample is not a number,
 		-- perhaps we should check that here
 		hnd:write(sample)
-	end
+	end)
 
 	hnd:close()
 end
@@ -476,19 +483,11 @@ function Stream:totable()
 		error("Cannot serialize infinite stream")
 	end
 
-	self:reset()
-
-	local tick = self:tick()
 	local vector = table.new(self:len(), 0)
 
-	while true do
-		clock_signal = not clock_signal
-
-		local value = tick()
-		if not value then break end
-
-		table.insert(vector, value)
-	end
+	self:foreach(function(sample)
+		vector[#vector + 1] = sample
+	end)
 
 	return vector
 end
@@ -537,6 +536,39 @@ function Stream:toplot(rows, cols)
 	end
 
 	return str
+end
+
+function Stream:pipe(prog, vbufmode, vbufsize)
+	local hnd = io.popen(prog, "w")
+	hnd:setvbuf(vbufmode or "full", vbufsize)
+
+	self:foreach(function(sample)
+		hnd:write(sample, "\n")
+	end)
+
+	hnd:close()
+end
+
+function Stream:gnuplot()
+	if self:len() == math.huge then
+		error("Cannot plot infinite stream")
+	end
+
+	-- NOTE: We're not using Stream:pipe() here, so we can
+	-- efficiently calculate a time index.
+	-- FIXME: Using something like libplplot would be more
+	-- efficient
+	local hnd = io.popen("feedgnuplot --exit --lines --ymin -1 --ymax 1 --domain", "w")
+	hnd:setvbuf("full")
+
+	local second = sec()
+	local i = 1
+	self:foreach(function(sample)
+		hnd:write(i/second, " ", sample, "\n")
+		i = i + 1
+	end)
+
+	hnd:close()
 end
 
 -- Stream metamethods
