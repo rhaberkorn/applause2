@@ -401,16 +401,16 @@ function Stream:play()
 	jit.on(true, true)
 	jit.on(tick, true)
 
-	-- Perform garbage collection cycle and turn it off
-	-- temporarily. This improves the realtime properties
-	-- of the sample generation loop below.
-	-- FIXME: Since stopping the garbage collector here
-	-- (in the Lua/C code this did not happen!?), memory
-	-- consumption increases constantly. Perhaps it is a
-	-- good idea to tweak garbage collection during the
-	-- generator loop.
+	-- Perform garbage collection cycle and tweak it
+	-- to be more realtime friendly.
+	-- FIXME: Since every stream that does not lag will have
+	-- times when it is idle, it may be clever to stop the
+	-- garbage collector and step it manually whenever
+	-- the Jack sample queue is full. However, how to guarantee
+	-- that we step it fast enough to prevent leaks?
 	collectgarbage("collect")
-	collectgarbage("stop")
+	local old_pause = collectgarbage("setpause", 100)
+	local old_stepmul = collectgarbage("setstepmul", 100)
 
 	local state
 	repeat
@@ -433,7 +433,8 @@ function Stream:play()
 		end
 	until state == C.APPLAUSE_AUDIO_INTERRUPTED
 
-	collectgarbage("restart")
+	collectgarbage("setpause", old_pause)
+	collectgarbage("setstepmul", old_stepmul)
 
 	if state == C.APPLAUSE_AUDIO_INTERRUPTED then
 		error("SIGINT received", 2)
