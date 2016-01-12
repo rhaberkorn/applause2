@@ -31,10 +31,11 @@
 #include <jack/midiport.h>
 #include <jack/ringbuffer.h>
 
-#define LUA_MODULE "applause.lua"
+#define LUA_MODULE		"applause.lua"
+#define APPLAUSE_HISTORY	".applause_history"
 
-#define CMD_SERVER_IP   "127.0.0.1"
-#define CMD_SERVER_PORT 10000
+#define CMD_SERVER_IP   	"127.0.0.1"
+#define CMD_SERVER_PORT		10000
 
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
 
@@ -878,6 +879,12 @@ main(int argc, char **argv)
 	signal_action.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &signal_action, NULL);
 
+	/*
+	 * Load the libhistory file.
+	 */
+	using_history();
+	read_history(APPLAUSE_HISTORY);
+
 	L = luaL_newstate();
 	if (!L) {
 		fprintf(stderr, "Error creating Lua state.\n");
@@ -960,5 +967,12 @@ main(int argc, char **argv)
 	svsem_free(buffer_sem);
 
 	lua_close(L);
+
+	/*
+	 * Write libhistory file
+	 */
+	if (write_history(APPLAUSE_HISTORY))
+		perror("write_history");
+
 	return 0;
 }
