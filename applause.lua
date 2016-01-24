@@ -64,10 +64,12 @@ cdef_safe[[
 enum applause_audio_state {
 	APPLAUSE_AUDIO_OK = 0,
 	APPLAUSE_AUDIO_INTERRUPTED,
-	APPLAUSE_AUDIO_XRUN
+	APPLAUSE_AUDIO_XRUN,
+	APPLAUSE_AUDIO_INVALID_PORT
 };
 
-enum applause_audio_state applause_push_sample(double sample_double);
+enum applause_audio_state applause_push_sample(int output_port_id,
+                                               double sample_double);
 
 int applause_midi_velocity_getvalue(int note, int channel);
 int applause_midi_note_getvalue(int channel);
@@ -183,6 +185,9 @@ end
 -- without knowing that the table at hand is an object
 Stream.is_a_stream = true
 
+-- All streams except the special MuxStream are mono
+Stream.channels = 1
+
 -- A stream, produces an infinite number of the same value by default
 -- (eternal quietness by default)
 function Stream:tick()
@@ -200,6 +205,7 @@ end
 
 -- Explicitly clock-sync a stream.
 -- FIXME: This should be done automatically by an optimizer stage.
+-- FIXME: That is counter-productive for simple number streams
 function Stream:sync()
 	return SyncedStream:new(self)
 end
@@ -405,16 +411,14 @@ function Stream:len()
 	return math.huge -- infinity
 end
 
-function Stream:play()
-	self:reset()
-
-	local tick = self:tick()
+function Stream:play(first_port)
+	first_port = first_port or 1
+	first_port = first_port - 1
 
 	-- Make sure JIT compilation is turned on for the generator function
 	-- and all subfunctions.
 	-- This should not be necessary theoretically.
 	jit.on(true, true)
-	jit.on(tick, true)
 
 	-- Perform garbage collection cycle and tweak it
 	-- to be more realtime friendly.
@@ -427,26 +431,30 @@ function Stream:play()
 	local old_pause = collectgarbage("setpause", 100)
 	local old_stepmul = collectgarbage("setstepmul", 100)
 
+	local channels = self.channels
 	local state
-	repeat
-		-- Advance clock
-		clock_signal = not clock_signal
+	self:foreach(function(frame)
+		-- Loop should get unrolled automatically
+		for i = 1, channels do
+			local sample = tonumber(frame[i])
+			assert(sample ~= nil)
 
-		local sample = tick()
-		if not sample then break end
+			-- NOTE: Invalid port Ids are currently silently
+			-- ignored. Perhaps it's better to check state or
+			-- to access output_ports_count from applause.c.
+			state = C.applause_push_sample(first_port+i, sample)
 
-		-- FIXME: What if the sample is not a number,
-		-- perhaps we should check that here
-		state = C.applause_push_sample(sample)
+			-- React to buffer underruns.
+			-- This is done here instead of in the realtime thread
+			-- even though it is already overloaded, so as not to
+			-- affect other applications in the Jack graph.
+			if state == C.APPLAUSE_AUDIO_XRUN then
+				io.stderr:write("WARNING: Buffer underrun detected\n")
+			end
 
-		-- React to buffer underruns.
-		-- This is done here instead of in the realtime thread
-		-- even though it is already overloaded, so as not to
-		-- affect other applications in the Jack graph.
-		if state == C.APPLAUSE_AUDIO_XRUN then
-			io.stderr:write("WARNING: Buffer underrun detected\n")
+			if state == C.APPLAUSE_AUDIO_INTERRUPTED then return true end
 		end
-	until state == C.APPLAUSE_AUDIO_INTERRUPTED
+	end)
 
 	collectgarbage("setpause", old_pause)
 	collectgarbage("setstepmul", old_stepmul)
@@ -461,18 +469,19 @@ function Stream:fork()
 	error("C function not registered!")
 end
 
+-- NOTE: This implementation is for single-channel streams
+-- only. See also MuxStream:foreach()
 function Stream:foreach(fnc)
 	self:reset()
 
+	local frame = table.new(1, 0)
 	local tick = self:tick()
 
 	while true do
 		clock_signal = not clock_signal
 
-		local sample = tick()
-		if not sample then break end
-
-		fnc(sample)
+		frame[1] = tick()
+		if not frame[1] or fnc(frame) then break end
 	end
 end
 
@@ -482,13 +491,28 @@ function Stream:save(filename, format)
 		error("Cannot save infinite stream")
 	end
 
+	local channels = self.channels
 	local hnd = sndfile:new(filename, "SFM_WRITE",
-	                        samplerate, 1, format)
+	                        samplerate, channels, format)
 
-	self:foreach(function(sample)
-		-- FIXME: What if the sample is not a number,
-		-- perhaps we should check that here
-		hnd:write(sample)
+	local frame_buffer = sndfile.frame_type(channels)
+
+	self:foreach(function(frame)
+		-- NOTE: This should be (hopefully) automatically
+		-- unrolled for single-channel streams
+		-- Otherwise each loop copies an entire frame.
+		-- This should be faster than letting LuaJIT translate
+		-- the frame directly.
+		for i = 1, channels do
+			local sample = tonumber(frame[i])
+			assert(sample ~= nil)
+			frame_buffer[i-1] = sample
+		end
+
+		-- NOTE: Apparently we cannot use hnd:write() if a frame is larger than one sample
+		-- (i.e. multichannel streams)
+		-- FIXME: Check return value
+		hnd:writef(frame_buffer)
 	end)
 
 	hnd:close()
@@ -499,21 +523,31 @@ function Stream:totable()
 		error("Cannot serialize infinite stream")
 	end
 
-	local vector = table.new(self:len(), 0)
+	local channels = self.channels
+	local channel_vectors = table.new(channels, 0)
 
-	self:foreach(function(sample)
-		vector[#vector + 1] = sample
+	for i = 1, channels do
+		channel_vectors[i] = table.new(self:len(), 0)
+	end
+
+	self:foreach(function(frame)
+		-- Loop should be unrolled automatically
+		for i = 1, channels do
+			channel_vectors[i][#channel_vectors[i] + 1] = frame[i]
+		end
 	end)
 
-	return vector
+	-- Return a list of vectors, one per channel
+	return unpack(channel_vectors)
 end
 
 -- Effectively eager-evaluates the stream returning
 -- an array-backed stream.
 function Stream:eval()
-	return VectorStream:new(self:totable())
+	return MuxStream:new(self:totable())
 end
 
+-- NOTE: This will only plot the stream's first channel
 function Stream:toplot(rows, cols)
 	rows = rows or 25
 	cols = cols or 80
@@ -558,8 +592,9 @@ function Stream:pipe(prog, vbufmode, vbufsize)
 	local hnd = io.popen(prog, "w")
 	hnd:setvbuf(vbufmode or "full", vbufsize)
 
-	self:foreach(function(sample)
-		hnd:write(sample, "\n")
+	self:foreach(function(frame)
+		hnd:write(unpack(frame))
+		hnd:write("\n")
 	end)
 
 	hnd:close()
@@ -579,12 +614,25 @@ function Stream:gnuplot()
 
 	local second = sec()
 	local i = 1
-	self:foreach(function(sample)
-		hnd:write(i/second, " ", sample, "\n")
+	self:foreach(function(frame)
+		hnd:write(i/second, " ", unpack(frame))
+		hnd:write("\n")
 		i = i + 1
 	end)
 
 	hnd:close()
+end
+
+function Stream:mux(...)
+	return MuxStream:new(self, ...)
+end
+
+-- For single-channel streams only, see also MuxStream:demux()
+function Stream:demux(i, j)
+	j = j or i
+	assert(i == 1 and j == 1,
+	       "Invalid channel range specified (mono-channel stream)")
+	return self
 end
 
 -- Stream metamethods
@@ -593,6 +641,7 @@ end
 -- consider metamethods when evaluating the length operator.
 function Stream:__len()	return self:len() end
 
+-- NOTE: Will only convert the first channel
 function Stream:__tostring()
 	local t
 
@@ -662,9 +711,151 @@ function Stream.__le(op1, op2)
 	return op1:len() <= op2:len()
 end
 
-SyncedStream = DeriveClass(Stream)
+MuxStream = DeriveClass(Stream)
 
-function SyncedStream:ctor(stream)
+function MuxStream:ctor(...)
+	self.streams = {}
+	for k, stream in ipairs{...} do
+		stream = tostream(stream)
+		if stream.channels == 1 then
+			table.insert(self.streams, stream)
+		else
+			for _, v in ipairs(stream.streams) do
+				table.insert(self.streams, v)
+			end
+		end
+		if stream:len() ~= self.streams[1]:len() then
+			error("Incompatible length of stream "..k)
+		end
+	end
+	self.channels = #self.streams
+
+	-- Single-channel streams must not be MuxStream!
+	-- This means that MuxStream:new() can be used as a
+	-- kind of multi-channel aware tostream() and is also
+	-- the inverse of totable()
+	if self.channels == 1 then return self.streams[1] end
+end
+
+function MuxStream:tick()
+	error("MuxStreams cannot be ticked")
+end
+
+function MuxStream:len()
+	-- All channel streams have the same length
+	return self.streams[1]:len()
+end
+
+-- Overrides Stream:demux()
+function MuxStream:demux(i, j)
+	j = j or i
+	assert(1 <= i and i <= self.channels and
+	       1 <= j and j <= self.channels and i <= j,
+	       "Invalid channel range specified")
+
+	-- NOTE: We cannot create single-channel MuxStreams
+	return i == j and self.streams[i]
+	              or MuxStream:new(unpack(self.streams, i, j))
+end
+
+-- Overrides Stream:foreach()
+-- NOTE: This could easily be integrated into Stream:foreach(),
+-- however this results in the loop to be unrolled explicitly
+-- for single-channel streams.
+function MuxStream:foreach(fnc)
+	self:reset()
+
+	local ticks = {}
+	for i = 1, #self.streams do
+		ticks[i] = self.streams[i]:tick()
+	end
+
+	local channels = self.channels
+	local frame = table.new(channels, 0)
+
+	while true do
+		clock_signal = not clock_signal
+
+		for i = 1, channels do
+			frame[i] = ticks[i]()
+			-- Since all streams must have the same
+			-- length, if one ends all end
+			if not frame[i] then return end
+		end
+
+		if fnc(frame) then break end
+	end
+end
+
+-- Base class for all streams that operate on arbitrary numbers
+-- of other streams. Handles muxing opaquely.
+MuxableStream = DeriveClass(Stream)
+
+-- Describes the part of the muxableCtor's signature
+-- containing muxable streams.
+-- By default all arguments are muxable streams.
+MuxableStream.sig_first_stream = 1
+MuxableStream.sig_last_stream = -1
+
+function MuxableStream:ctor(...)
+	local args = {...}
+
+	-- automatic base constructor call, ignore
+	if #args == 0 then return end
+
+	local first_stream = self.sig_first_stream
+	local last_stream = self.sig_last_stream > 0 and
+	                    self.sig_last_stream or #args
+	local channels
+
+	for i = first_stream, last_stream do
+		-- Streamify all stream arguments
+		args[i] = tostream(args[i])
+		-- The first non-mono stream determines the number of
+		-- channels to check for
+		channels = channels or (args[i].channels > 1 and args[i].channels)
+	end
+
+	if not channels then
+		-- all mono-streams
+		return self:muxableCtor(unpack(args))
+	end
+
+	for i = first_stream, last_stream do
+		-- Single-channel (non-MuxStream) streams are blown up
+		-- to the final number of channels
+		if args[i].channels == 1 then
+			local synced = args[i]:sync()
+			-- FIXME: May need a list creation function
+			local duped_channels = {}
+			for j = 1, channels do
+				duped_channels[j] = synced
+			end
+			args[i] = MuxStream:new(unpack(duped_channels))
+		end
+
+		-- Otherwise all stream arguments must have the same number of channels
+		assert(args[i].channels == channels,
+		       "Incompatible number of channels")
+	end
+
+	local channel_streams = {}
+	local mono_args = {...}
+
+	for channel = 1, args[first_stream].channels do
+		for i = first_stream, last_stream do
+			mono_args[i] = args[i].streams[channel]
+		end
+
+		channel_streams[channel] = self.base:new(unpack(mono_args))
+	end
+
+	return MuxStream:new(unpack(channel_streams))
+end
+
+SyncedStream = DeriveClass(MuxableStream)
+
+function SyncedStream:muxableCtor(stream)
 	self.streams = {stream}
 end
 
@@ -680,7 +871,7 @@ function SyncedStream:tick()
 
 		local tick = self.streams[1]:tick()
 
-		self.syncedTick = function()
+		function self.syncedTick()
 			if clock_signal ~= last_clock then
 				last_clock = clock_signal
 				last_sample = tick()
@@ -692,8 +883,14 @@ function SyncedStream:tick()
 	return self.syncedTick
 end
 
+function SyncedStream:len()
+	return self.streams[1]:len()
+end
+
 VectorStream = DeriveClass(Stream)
 
+-- NOTE: This is mono-streams only, the inverse of Stream:totable()
+-- is MuxStream:new() which will also work for single streams
 function VectorStream:ctor(vector)
 	self.vector = vector
 end
@@ -715,7 +912,8 @@ end
 -- NOTE: A SndfileStream itself cannot currently be reused within
 -- one high-level stream (i.e. UGen graph).
 -- SndfileStream:sync() must be called to wrap it in a
--- synced stream manually.
+-- synced stream manually. This is done automatically and necessarily
+-- for multi-channel streams already.
 -- FIXME: This will no longer be necessary when syncing
 -- streams automatically in an optimization phase.
 SndfileStream = DeriveClass(Stream)
@@ -724,6 +922,17 @@ function SndfileStream:ctor(filename)
 	-- FIXME: This fails if the file is not at the
 	-- correct sample rate. Need to resample...
 	self.handle = sndfile:new(filename, "SFM_READ")
+
+	if self.handle.info.channels > 1 then
+		local synced = self:sync()
+		local streams = {}
+		for i = 0, self.handle.info.channels-1 do
+			streams[i+1] = synced:map(function(frame)
+				return tonumber(frame[i])
+			end)
+		end
+		return MuxStream:new(unpack(streams))
+	end
 end
 
 function SndfileStream:reset()
@@ -734,8 +943,20 @@ end
 function SndfileStream:tick()
 	local handle = self.handle
 
-	return function()
-		return handle:read()
+	if handle.info.channels == 1 then
+		return function()
+			return handle:read()
+		end
+	else
+		-- For multi-channel audio files, we generate a stream
+		-- of frame buffers.
+		-- However, the user never sees these since they are translated
+		-- to a MuxStream automatically (see ctor())
+		local frame = sndfile.frame_type(handle.info.channels)
+
+		return function()
+			return handle:readf(frame) and frame or nil
+		end
 	end
 end
 
@@ -749,12 +970,11 @@ function SndfileStream:close()
 	self.handle:close()
 end
 
-ConcatStream = DeriveClass(Stream)
+ConcatStream = DeriveClass(MuxableStream)
 
-function ConcatStream:ctor(...)
+function ConcatStream:muxableCtor(...)
 	self.streams = {}
 	for _, v in ipairs{...} do
-		v = tostream(v)
 		if v:instanceof(ConcatStream) then
 			-- Optimization: Avoid redundant
 			-- ConcatStream objects
@@ -807,10 +1027,13 @@ function ConcatStream:len()
 	return len
 end
 
-RepeatStream = DeriveClass(Stream)
+RepeatStream = DeriveClass(MuxableStream)
 
-function RepeatStream:ctor(stream, repeats)
-	self.streams = {tostream(stream)}
+-- we have a trailing non-stream argument
+RepeatStream.sig_last_stream = 1
+
+function RepeatStream:muxableCtor(stream, repeats)
+	self.streams = {stream}
 	self.repeats = repeats or math.huge
 end
 
@@ -842,10 +1065,10 @@ end
 -- This removes one level of nesting from nested streams
 -- (e.g. streams of streams), and is semantically similar
 -- to folding the stream with the Concat operation.
-RavelStream = DeriveClass(Stream)
+RavelStream = DeriveClass(MuxableStream)
 
-function RavelStream:ctor(stream)
-	self.streams = {tostream(stream)}
+function RavelStream:muxableCtor(stream)
+	self.streams = {stream}
 end
 
 function RavelStream:tick()
@@ -925,10 +1148,13 @@ function IotaStream:len()
 end
 
 -- i and j have the same semantics as in string.sub()
-SubStream = DeriveClass(Stream)
+SubStream = DeriveClass(MuxableStream)
 
-function SubStream:ctor(stream, i, j)
-	self.streams = {tostream(stream)}
+-- We have trailing non-stream arguments
+SubStream.sig_last_stream = 1
+
+function SubStream:muxableCtor(stream, i, j)
+	self.streams = {stream}
 	self.i = i
 	self.j = j or -1
 
@@ -967,12 +1193,12 @@ end
 -- FIXME: Will not work for non-samlpe streams
 -- This should be split into a generic (index) and
 -- sample-only (interpolate) operation
-IndexStream = DeriveClass(Stream)
+IndexStream = DeriveClass(MuxableStream)
 
-function IndexStream:ctor(stream, index_stream)
+function IndexStream:muxableCtor(stream, index_stream)
 	-- NOTE: For stream resetting to work and to simplify
 	-- future optimization passes, all streams are in the streams array
-	self.streams = {tostream(stream), tostream(index_stream)}
+	self.streams = {stream, index_stream}
 end
 
 function IndexStream:tick()
@@ -1019,10 +1245,13 @@ function IndexStream:len()
 	return self.streams[2]:len()
 end
 
-MapStream = DeriveClass(Stream)
+MapStream = DeriveClass(MuxableStream)
 
-function MapStream:ctor(stream, fnc)
-	self.streams = {tostream(stream)}
+-- We have trailing non-stream arguments
+MapStream.sig_last_stream = 1
+
+function MapStream:muxableCtor(stream, fnc)
+	self.streams = {stream}
 	self.fnc = fnc
 end
 
@@ -1039,10 +1268,13 @@ function MapStream:len()
 	return self.streams[1]:len()
 end
 
-ScanStream = DeriveClass(Stream)
+ScanStream = DeriveClass(MuxableStream)
 
-function ScanStream:ctor(stream, fnc)
-	self.streams = {tostream(stream)}
+-- We have trailing non-stream arguments
+ScanStream.sig_last_stream = 1
+
+function ScanStream:muxableCtor(stream, fnc)
+	self.streams = {stream}
 	self.fnc = fnc
 end
 
@@ -1063,10 +1295,13 @@ function ScanStream:len()
 	return self.streams[1]:len()
 end
 
-FoldStream = DeriveClass(Stream)
+FoldStream = DeriveClass(MuxableStream)
 
-function FoldStream:ctor(stream, fnc)
-	self.streams = {tostream(stream)}
+-- We have trailing non-stream arguments
+FoldStream.sig_last_stream = 1
+
+function FoldStream:muxableCtor(stream, fnc)
+	self.streams = {stream}
 	self.fnc = fnc
 end
 
@@ -1094,14 +1329,16 @@ end
 -- ZipStream combines any number of streams into a single
 -- stream using a function. This is the basis of the "+"
 -- and "*" operations.
-ZipStream = DeriveClass(Stream)
+ZipStream = DeriveClass(MuxableStream)
 
-function ZipStream:ctor(fnc, ...)
+-- We have a leading non-stream argument
+ZipStream.sig_first_stream = 2
+
+function ZipStream:muxableCtor(fnc, ...)
 	self.fnc = fnc
 
 	self.streams = {}
 	for _, v in ipairs{...} do
-		v = tostream(v)
 		if v:instanceof(ZipStream) and v.fnc == fnc then
 			-- Optimization: Avoid redundant
 			-- ZipStream objects
@@ -1173,6 +1410,7 @@ function ZipStream:len()
 	return max
 end
 
+-- FIXME: Different kinds of Noise, e.g. pink or brown noise
 NoiseStream = DeriveClass(Stream)
 
 function NoiseStream:tick()
@@ -1425,12 +1663,12 @@ local function ddn(f)
 	                  (f < -1e-15 and f > -1e15 and f or 0)
 end
 
-LPFStream = DeriveClass(Stream)
+LPFStream = DeriveClass(MuxableStream)
 
-function LPFStream:ctor(stream, freq)
+function LPFStream:muxableCtor(stream, freq)
 	-- NOTE: For stream resetting to work and to simplify
 	-- future optimization passes, all streams are in the streams array
-	self.streams = {tostream(stream), tostream(freq)}
+	self.streams = {stream, freq}
 end
 
 function LPFStream:tick()
@@ -1485,12 +1723,12 @@ function LPFStream:len()
 	return self.streams[1]:len()
 end
 
-HPFStream = DeriveClass(Stream)
+HPFStream = DeriveClass(MuxableStream)
 
-function HPFStream:ctor(stream, freq)
+function HPFStream:muxableCtor(stream, freq)
 	-- NOTE: For stream resetting to work and to simplify
 	-- future optimization passes, all streams are in the streams array
-	self.streams = {tostream(stream), tostream(freq)}
+	self.streams = {stream, freq}
 end
 
 function HPFStream:tick()
@@ -1552,12 +1790,15 @@ end
 
 -- NOTE: The quality factor, indirectly proportional
 -- to the passband width
-BPFStream = DeriveClass(Stream)
+BPFStream = DeriveClass(MuxableStream)
 
-function BPFStream:ctor(stream, freq, quality)
+-- Trailing non-stream arguments
+BPFStream.sig_last_stream = 2
+
+function BPFStream:muxableCtor(stream, freq, quality)
 	-- NOTE: For stream resetting to work and to simplify
 	-- future optimization passes, all streams are in the streams array
-	self.streams = {tostream(stream), tostream(freq)}
+	self.streams = {stream, freq}
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
 end
@@ -1619,10 +1860,13 @@ end
 
 -- NOTE: The quality factor, indirectly proportional
 -- to the passband width
-BRFStream = DeriveClass(Stream)
+BRFStream = DeriveClass(MuxableStream)
 
-function BRFStream:ctor(stream, freq, quality)
-	self.streams = {tostream(stream), tostream(freq)}
+-- Trailing non-stream arguments
+BRFStream.sig_last_stream = 2
+
+function BRFStream:muxableCtor(stream, freq, quality)
+	self.streams = {stream, freq}
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
 end

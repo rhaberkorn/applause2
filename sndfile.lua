@@ -119,19 +119,22 @@ const char* sf_strerror(SNDFILE *sndfile);
 
 int sf_command(SNDFILE *sndfile, int command, void *data, int datasize);
 
-sf_count_t sf_read_double(SNDFILE *sndfile, double *ptr, sf_count_t items) ;
+sf_count_t sf_read_double(SNDFILE *sndfile, double *ptr, sf_count_t items);
+sf_count_t sf_readf_double(SNDFILE *sndfile, double *ptr, sf_count_t frames);
+
 sf_count_t sf_write_double(SNDFILE *sndfile, const double *ptr, sf_count_t items);
+sf_count_t sf_writef_double(SNDFILE *sndfile, const double *ptr, sf_count_t frames);
 
 int sf_close(SNDFILE *sndfile);
 ]]
 
 local lib = ffi.load("sndfile")
 
-local double_type = ffi.typeof("double[?]")
+sndfile.frame_type = ffi.typeof("double[?]")
 
 -- This can be reused in sndfile:read() and sndfile:write()
 -- to avoid allocations.
-local double_buffer = double_type(1)
+local double_buffer = sndfile.frame_type(1)
 
 -- NOTE: Constants are also in ffi.C
 sndfile.SF_FORMAT = ffi.typeof("SF_FORMAT")
@@ -196,10 +199,18 @@ function sndfile:read()
 	       tonumber(double_buffer[0]) or nil
 end
 
+function sndfile:readf(frame)
+	return lib.sf_readf_double(self.handle, frame, 1) == 1
+end
+
 -- TODO: Maybe support writing multiple samples at once
 function sndfile:write(sample)
 	double_buffer[0] = sample
 	return lib.sf_write_double(self.handle, double_buffer, 1)
+end
+
+function sndfile:writef(frame)
+	return lib.sf_writef_double(self.handle, frame, 1)
 end
 
 function sndfile:close()

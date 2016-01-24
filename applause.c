@@ -39,18 +39,27 @@
 
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
 
-static jack_port_t		*output_port;
 static jack_client_t		*client = NULL;
 
-#define DEFAULT_BUFFER_SIZE	100	/* milliseconds */
-static jack_ringbuffer_t	*buffer = NULL;
-static int			buffer_sem;
-/**
- * True if a buffer underrun occurs.
- * FIXME: sig_atomic_t is probably the wrong type.
- * Perhaps use the Mintomic types.
- */
-static sig_atomic_t		buffer_xrun = 0;
+#define DEFAULT_NUMBER_OF_OUTPUT_PORTS	1
+#define DEFAULT_BUFFER_SIZE		100	/* milliseconds */
+
+typedef struct applause_output_port {
+	jack_port_t		*jack_port;
+	jack_ringbuffer_t	*buffer;
+	int			buffer_sem;
+	/**
+	 * True if a buffer underrun occurs.
+	 * FIXME: sig_atomic_t is probably the wrong type.
+	 * Perhaps use the Mintomic types.
+	 */
+	sig_atomic_t		buffer_xrun;
+} applause_output_port;
+
+/** List of Applause output ports */
+static applause_output_port *output_ports = NULL;
+/** Number of Applause output ports */
+static int output_ports_count = DEFAULT_NUMBER_OF_OUTPUT_PORTS;
 
 static sig_atomic_t		interrupted = 0;
 
@@ -167,37 +176,38 @@ signal_handler(int signum)
 static int
 jack_process(jack_nframes_t nframes, void *arg)
 {
-	jack_default_audio_sample_t *out;
-	size_t len = sizeof(*out)*nframes;
-	size_t r;
+	size_t len = sizeof(jack_default_audio_sample_t)*nframes;
 
 	void *midi_in;
 	jack_nframes_t midi_events;
 
-	out = (jack_default_audio_sample_t *)
-		jack_port_get_buffer(output_port, nframes);
+	for (int i = 0; i < output_ports_count; i++) {
+		applause_output_port *port = output_ports + i;
+		jack_default_audio_sample_t *out;
+		size_t r;
 
-	/**
-	 * @bug Do we have to care about more than one
-	 * channel per frame?
-	 */
-	r = jack_ringbuffer_read(buffer, (char *)out, len);
+		out = (jack_default_audio_sample_t *)
+			jack_port_get_buffer(port->jack_port, nframes);
 
-	/*
-	 * The semaphor value corresponds with the number of
-	 * writable bytes in buffer, i.e. the available space.
-	 * This operation should never block and is supposed to
-	 * be real-time safe :-)
-	 */
-	if (r > 0)
-		svsem_op(buffer_sem, r);
+		r = jack_ringbuffer_read(port->buffer, (char *)out, len);
 
-	/*
-	 * Here we're assuming that memset() is realtime-capable.
-	 * It might not be on every UNIX!?
-	 */
-	memset((char *)out + r, 0, len - r);
-	buffer_xrun |= len - r > 0;
+		/*
+		 * The semaphor value corresponds with the number of
+		 * writable bytes in buffer, i.e. the available space.
+		 * This operation should never block and is supposed to
+		 * be real-time safe :-)
+		 */
+		if (r > 0)
+			svsem_op(port->buffer_sem, r);
+
+		/*
+		 * Add silence for missing output samples.
+		 * Here we're assuming that memset() is realtime-capable.
+		 * It might not be on every UNIX!?
+		 */
+		memset((char *)out + r, 0, len - r);
+		port->buffer_xrun |= len - r > 0;
+	}
 
 	/*
 	 * MIDI processing.
@@ -284,28 +294,76 @@ init_audio(int buffer_size)
 		fprintf(stderr, "unique name `%s' assigned\n", client_name);
 	}
 
-	/* tell the JACK server to call `process()' whenever
-	   there is work to be done.
-	*/
+	/*
+	 * Tell the JACK server to call `jack_process()' whenever
+	 * there is work to be done.
+	 * This will fill all output buffers and handle MIDI events.
+	 */
+	jack_set_process_callback(client, jack_process, NULL);
 
-	jack_set_process_callback(client, jack_process, 0);
+	/*
+	 * Tell the JACK server to call `jack_shutdown()' if
+	 * it ever shuts down, either entirely, or if it
+	 * just decides to stop calling us.
+	 */
+	jack_on_shutdown(client, jack_shutdown, NULL);
 
-	/* tell the JACK server to call `jack_shutdown()' if
-	   it ever shuts down, either entirely, or if it
-	   just decides to stop calling us.
-	*/
-
-	jack_on_shutdown (client, jack_shutdown, 0);
+	/*
+	 * Calculate the buffer size in bytes given the `buffer_size`
+	 * in milliseconds.
+	 * Make sure it is at least the Jack server's buffer size,
+	 * else jack_process() is very likely not able to provide
+	 * enough bytes.
+	 * FIXME: The Jack server's sample rate and buffer size can
+	 * theoretically change at runtime but currently,
+	 * the buffer size is not adapted
+	 * which means it could be too small after the change.
+	 */
+	buffer_bytes = sizeof(jack_default_audio_sample_t)*
+	               MAX(jack_get_sample_rate(client)*buffer_size/1000,
+	                   jack_get_buffer_size(client));
 
 	/*
 	 * Create output ports
 	 */
-	output_port = jack_port_register (client, "output",
-					  JACK_DEFAULT_AUDIO_TYPE,
-					  JackPortIsOutput, 0);
-	if (output_port == NULL) {
-		fprintf(stderr, "no more JACK ports available\n");
-		return 1;
+	free(output_ports);
+	output_ports = calloc(output_ports_count, sizeof(*output_ports));
+
+	for (int i = 0; i < output_ports_count; i++) {
+		applause_output_port *port = output_ports + i;
+		char name[256];
+
+		/*
+		 * NOTE: Port names must be unique.
+		 * FIXME: Make the names configurable.
+		 */
+		snprintf(name, sizeof(name), "output_%d", i+1);
+
+		port->jack_port = jack_port_register(client, name,
+		                                     JACK_DEFAULT_AUDIO_TYPE,
+		                                     JackPortIsOutput, 0);
+		if (!port->jack_port) {
+			fprintf(stderr, "No more JACK ports available\n");
+			return 1;
+		}
+
+		/*
+		 * Initialize ring buffer of samples.
+		 * The semaphore is initialized with the same size
+		 * since it represents the available bytes in the ring
+		 * buffer.
+		 */
+		port->buffer = jack_ringbuffer_create(buffer_bytes);
+		if (!port->buffer) {
+			fprintf(stderr, "cannot create ringbuffer\n");
+			return 1;
+		}
+
+		port->buffer_sem = svsem_init(buffer_bytes);
+		if (port->buffer_sem < 0) {
+			fprintf(stderr, "error initializing semaphore\n");
+			return 1;
+		}
 	}
 
 	/*
@@ -331,39 +389,6 @@ init_audio(int buffer_size)
 
 	pthread_mutex_init(&midi_mutex, &prioinherit);
 
-	/*
-	 * Calculate the buffer size in bytes given the `buffer_size`
-	 * in milliseconds.
-	 * Make sure it is at least the Jack server's buffer size,
-	 * else jack_process() is very likely not able to provide
-	 * enough bytes.
-	 * FIXME: The Jack server's sample rate and buffer size can
-	 * theoretically change at runtime but currently,
-	 * the buffer size is not adapted
-	 * which means it could be too small after the change.
-	 */
-	buffer_bytes = sizeof(jack_default_audio_sample_t)*
-	               MAX(jack_get_sample_rate(client)*buffer_size/1000,
-	                   jack_get_buffer_size(client));
-
-	/*
-	 * Initialize ring buffer of samples.
-	 * The semaphore is initialized with the same size
-	 * since it represents the available bytes in the ring
-	 * buffer.
-	 */
-	buffer = jack_ringbuffer_create(buffer_bytes);
-	if (!buffer) {
-		fprintf(stderr, "cannot create ringbuffer\n");
-		return 1;
-	}
-
-	buffer_sem = svsem_init(buffer_bytes);
-	if (buffer_sem < 0) {
-		fprintf(stderr, "error initializing semaphore\n");
-		return 1;
-	}
-
 	/* Tell the JACK server that we are ready to roll.  Our
 	 * process() callback will start running now. */
 
@@ -379,19 +404,24 @@ init_audio(int buffer_size)
 	 * "input" to the backend, and capture ports are "output" from
 	 * it.
 	 */
-
-	ports = jack_get_ports (client, NULL, NULL,
-				JackPortIsPhysical|JackPortIsInput);
+	ports = jack_get_ports(client, NULL, NULL,
+	                       JackPortIsPhysical | JackPortIsInput);
 	if (ports == NULL) {
 		fprintf(stderr, "no physical playback ports\n");
-		return 1;
+		return 0;
 	}
 
-	if (jack_connect (client, jack_port_name (output_port), ports[0])) {
-		fprintf (stderr, "cannot connect output ports\n");
+	for (int i = 0; i < output_ports_count && ports[i]; i++) {
+		if (jack_connect(client, jack_port_name(output_ports[i].jack_port),
+		                 ports[i])) {
+			fprintf(stderr, "Cannot connect port %s to %s\n",
+			        jack_port_name(output_ports[i].jack_port),
+			        ports[i]);
+		}
 	}
 
-	free (ports);
+	jack_free(ports);
+
 	return 0;
 }
 
@@ -512,7 +542,8 @@ applause_midi_cc_getvalue(int control, int channel)
 enum applause_audio_state {
 	APPLAUSE_AUDIO_OK = 0,
 	APPLAUSE_AUDIO_INTERRUPTED,
-	APPLAUSE_AUDIO_XRUN
+	APPLAUSE_AUDIO_XRUN,
+	APPLAUSE_AUDIO_INVALID_PORT
 };
 
 /**
@@ -521,8 +552,10 @@ enum applause_audio_state {
  * This function should be called from the Stream:play()
  * implementation, which is faster than calling Lua functions
  * from a C implementation of Stream:play() using the Lua C API
- * (supposedly, I could not reproduce this).
+ * (supposedly - I could not reproduce this).
  *
+ * @param output_port_id The number of the output port.
+ *                       The first one being 1.
  * @param sample_double The audio sample as a double (compatible
  *                      with lua_Number).
  *                      This is speed relevant since otherwise
@@ -530,10 +563,25 @@ enum applause_audio_state {
  *                      float type.
  */
 enum applause_audio_state
-applause_push_sample(double sample_double)
+applause_push_sample(int output_port_id, double sample_double)
 {
+	applause_output_port *port;
 	jack_default_audio_sample_t sample =
 			(jack_default_audio_sample_t)sample_double;
+
+	if (interrupted) {
+		interrupted = 0;
+		return APPLAUSE_AUDIO_INTERRUPTED;
+	}
+
+	/*
+	 * NOTE: The alternative to reporting invalid port Ids here
+	 * would be exporting output_ports_count, so the Lua code can
+	 * check it and assert()ing here instead.
+	 */
+	if (output_port_id < 1 || output_port_id > output_ports_count)
+		return APPLAUSE_AUDIO_INVALID_PORT;
+	port = output_ports + output_port_id - 1;
 
 	/*
 	 * We are about to "consume" one free sample in the buffer.
@@ -542,17 +590,13 @@ applause_push_sample(double sample_double)
 	 * in buffer since jack_process() will only read from the
 	 * buffer.
 	 */
-	svsem_op(buffer_sem, -(int)sizeof(sample));
+	svsem_op(port->buffer_sem, -(int)sizeof(sample));
 
-	jack_ringbuffer_write(buffer, (const char *)&sample,
+	jack_ringbuffer_write(port->buffer, (const char *)&sample,
 	                      sizeof(sample));
 
-	if (interrupted) {
-		interrupted = 0;
-		return APPLAUSE_AUDIO_INTERRUPTED;
-	}
-	if (buffer_xrun) {
-		buffer_xrun = 0;
+	if (port->buffer_xrun) {
+		port->buffer_xrun = 0;
 		return APPLAUSE_AUDIO_XRUN;
 	}
 
@@ -588,6 +632,7 @@ l_Stream_fork(lua_State *L)
 	if (child_pid != 0) {
 		/* in the parent process */
 		//jack_activate(client);
+		/* FIXME: Pass on the real buffer size */
 		init_audio(DEFAULT_BUFFER_SIZE);
 
 		/* call Client:new(child_pid) */
@@ -603,6 +648,7 @@ l_Stream_fork(lua_State *L)
 
 	//jack_client_close(client);
 
+	/* FIXME: Pass on the real buffer size */
 	init_audio(DEFAULT_BUFFER_SIZE);
 
 	for (;;) {
@@ -861,7 +907,9 @@ main(int argc, char **argv)
 	 * FIXME: Support --help
 	 */
 	if (argc > 1)
-		buffer_size = atoi(argv[1]);
+		output_ports_count = atoi(argv[1]);
+	if (argc > 2)
+		buffer_size = atoi(argv[2]);
 
 	/*
 	 * Register sigint_handler() as the SIGINT handler.
@@ -904,7 +952,9 @@ main(int argc, char **argv)
 	/* remove traceback function */
 	lua_remove(L, -1);
 
-	init_audio(buffer_size);
+	if (init_audio(buffer_size))
+		/* error has already been printed */
+		return EXIT_FAILURE;
 
 	/*
 	 * Register native C functions.
@@ -962,9 +1012,12 @@ main(int argc, char **argv)
 
 	/*
 	 * FIXME: Shut down connection server.
+	 * FIXME: Clean up properly.
 	 */
-
-	svsem_free(buffer_sem);
+	for (int i = 0; i < output_ports_count; i++) {
+		svsem_free(output_ports[i].buffer_sem);
+	}
+	free(output_ports);
 
 	lua_close(L);
 
