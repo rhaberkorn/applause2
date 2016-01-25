@@ -41,19 +41,28 @@ typedef enum {
 int clock_gettime(clockid_t clk_id, struct timespec *tp);
 ]]
 
--- measure time required to execute fnc()
+-- Measure time required to execute fnc()
+-- See also Stream:benchmark()
 function benchmark(fnc)
 	local t1 = ffi.new("struct timespec[1]")
 	local t2 = ffi.new("struct timespec[1]")
+
+	-- See Stream:play(): Try to be more realtime-friendly
+	collectgarbage("collect")
+	local old_pause = collectgarbage("setpause", 100)
+	local old_stepmul = collectgarbage("setstepmul", 100)
 
 	C.clock_gettime("CLOCK_PROCESS_CPUTIME_ID", t1)
 	fnc()
 	C.clock_gettime("CLOCK_PROCESS_CPUTIME_ID", t2)
 
+	collectgarbage("setpause", old_pause)
+	collectgarbage("setstepmul", old_stepmul)
+
 	local t1_ms = t1[0].tv_sec*1000 + t1[0].tv_nsec/1000000
 	local t2_ms = t2[0].tv_sec*1000 + t2[0].tv_nsec/1000000
 
-	print("Elapsed CPU time: "..(t2_ms - t1_ms).."ms")
+	print("Elapsed CPU time: "..tonumber(t2_ms - t1_ms).."ms")
 end
 
 --
@@ -483,6 +492,16 @@ function Stream:foreach(fnc)
 		frame[1] = tick()
 		if not frame[1] or fnc(frame) then break end
 	end
+end
+
+function Stream:benchmark()
+	if self:len() == math.huge then
+		error("Cannot benchmark infinite stream")
+	end
+
+	benchmark(function()
+		self:foreach(function() end)
+	end)
 end
 
 -- TODO: Use a buffer to improve perfomance (e.g. 1024 samples)
@@ -1410,7 +1429,6 @@ function ZipStream:len()
 	return max
 end
 
--- FIXME: Different kinds of Noise, e.g. pink or brown noise
 NoiseStream = DeriveClass(Stream)
 
 function NoiseStream:tick()
@@ -1418,6 +1436,64 @@ function NoiseStream:tick()
 
 	return function()
 		return random()*2 - 1
+	end
+end
+
+-- NOTE: Adapted from the algorithm used here:
+-- http://vellocet.com/dsp/noise/VRand.html
+function BrownNoise()
+	return NoiseStream():scan(function(brown, white)
+		brown = (brown or 0) + white
+		return (brown < -8 or brown > 8) and brown - white or brown
+	end):mul(0.0625)
+end
+
+PinkNoiseStream = DeriveClass(Stream)
+
+-- NOTE: Adapted from the algorithm used here:
+-- http://vellocet.com/dsp/noise/VRand.html
+function PinkNoiseStream:tick()
+	local random = math.random
+	local band, rshift = bit.band, bit.rshift
+	local max = math.max
+
+	local store = table.new(16, 0)
+	for i = 1, 16 do store[i] = 0 end
+
+	local pink = 0
+	local count = 0
+
+	return function()
+		local k = 0
+
+		-- Find the first bit set. This is still way faster
+		-- than doing it using the libc's ffs() function.
+		-- Someday the bit library will hopefully support ffs
+		while band(rshift(count, k), 1) == 0 and k < 4 do
+			k = k + 1
+		end
+		k = band(k, 0x0F) + 1
+
+		local last_r = store[k]
+
+		while true do
+			local r = random()*2 - 1
+
+			store[k] = r
+
+			local next_pink = pink + r - last_r
+
+			if next_pink >= -4 and next_pink <= 4 then
+				pink = next_pink
+				break
+			end
+		end
+
+		-- Make sure count wraps. This is for some reason much slower
+		-- than using a FFI integer.
+		count = band(count + 1, 0x0F)
+
+		return (random()*2 - 1 + pink)*0.125
 	end
 end
 
