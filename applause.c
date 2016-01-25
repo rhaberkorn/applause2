@@ -824,7 +824,7 @@ command_server(void *user_data)
 
 		/* parse message length */
 		length = atoi(length_buf);
-		command = malloc(length);
+		command = malloc(length+1);
 		assert(command != NULL);
 
 		if (read(client_fd, command, length) < length) {
@@ -837,6 +837,7 @@ command_server(void *user_data)
 			close(client_fd);
 			continue;
 		}
+		command[length] = '\0';
 
 		pthread_mutex_lock(&lua_mutex);
 
