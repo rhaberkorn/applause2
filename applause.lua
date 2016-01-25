@@ -1656,6 +1656,38 @@ end
 
 function iota(...) return IotaStream:new(...) end
 
+function line(v1, t, v2)
+	return iota(t):mul((v2-v1)/t):add(v1)
+end
+
+-- Derived from RTcmix' "curve" table
+-- Generates a single linear or logarithmic line segment
+-- See http://www.music.columbia.edu/cmc/Rtcmix/docs/scorefile/maketable.html#curve
+function curve(v1, alpha, t, v2)
+	v2 = v2 or 0
+	if not alpha or alpha == 0 then return line(v1, t, v2) end
+
+	local exp = math.exp
+	local denom = 1/(1 - exp(alpha))
+	local delta = v2 - v1
+
+	return iota(t):map(function(x)
+		return v1 + delta*(1 - exp(x/t * alpha))*denom
+	end)
+end
+
+-- Generates a variable number of concatenated line segments
+-- E.g. curves(0, 0, sec(1), 1, 0, sec(1), 0)
+function curves(...)
+	local args = {...}
+	local ret
+	for i = 1, #args-1, 3 do
+		local c = curve(unpack(args, i, i+3))
+		ret = ret and ret..c or c
+	end
+	return ret
+end
+
 --
 -- Filters
 --
