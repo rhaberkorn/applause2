@@ -646,6 +646,10 @@ function Stream:mux(...)
 	return MuxStream:new(self, ...)
 end
 
+function Stream:dupmux(channels)
+	return DupMux(self, channels)
+end
+
 -- For single-channel streams only, see also MuxStream:demux()
 function Stream:demux(i, j)
 	j = j or i
@@ -806,6 +810,20 @@ function MuxStream:foreach(fnc)
 	end
 end
 
+-- FIXME: This should perhaps be a class
+function DupMux(stream, channels)
+	channels = channels or 2
+
+	local synced = tostream(stream):sync()
+	-- FIXME: May need a list creation function
+	local streams = {}
+	for j = 1, channels do
+		streams[j] = synced
+	end
+
+	return MuxStream:new(unpack(streams))
+end
+
 -- Base class for all streams that operate on arbitrary numbers
 -- of other streams. Handles muxing opaquely.
 MuxableStream = DeriveClass(Stream)
@@ -844,13 +862,7 @@ function MuxableStream:ctor(...)
 		-- Single-channel (non-MuxStream) streams are blown up
 		-- to the final number of channels
 		if args[i].channels == 1 then
-			local synced = args[i]:sync()
-			-- FIXME: May need a list creation function
-			local duped_channels = {}
-			for j = 1, channels do
-				duped_channels[j] = synced
-			end
-			args[i] = MuxStream:new(unpack(duped_channels))
+			args[i] = args[i]:dupmux(channels)
 		end
 
 		-- Otherwise all stream arguments must have the same number of channels
