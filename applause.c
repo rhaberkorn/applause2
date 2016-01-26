@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <signal.h>
 #include <unistd.h>
+#include <poll.h>
 #include <errno.h>
 #include <assert.h>
 
@@ -760,6 +761,40 @@ do_command(lua_State *L, const char *command)
  */
 static pthread_mutex_t lua_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/**
+ * Thread monitoring the client file desciptor.
+ * This will set the interrupted flag if the remote
+ * end closes its write part of the socket.
+ * That's why we need the length header at the beginning
+ * of requests.
+ * There seems to be no easy way to find out whether the
+ * read part has been shut down (or the entire connection)
+ * without doing I/O.
+ * On the other hand, this is how "socat -,ignoreeof TCP:127.0.0.1:10000"
+ * behaves and socat does close the connection properly when
+ * interrupted in contrast to netcat.
+ * So either we stay with this solution or implement a
+ * stand-alone applause_cat just for sending commands (which
+ * would give us more liberties, though).
+ */
+static void *
+monitor_thread_cb(void *user_data)
+{
+	int fd = *(int *)user_data;
+
+	struct pollfd pfd = {fd, POLLRDHUP};
+
+	/*
+	 * poll() is a cancellation point, so when
+	 * do_command() terminates, we will cancel here.
+	 */
+	while (poll(&pfd, 1, -1) != 1 ||
+	       !(pfd.revents & (POLLRDHUP | POLLERR | POLLHUP)));
+
+	interrupted = 1;
+	return NULL;
+}
+
 /*
  * FIXME: This should perhaps be the only interface to the
  * applause Lua state with the REPL loop implemented as a Lua
@@ -802,6 +837,8 @@ command_server(void *user_data)
 		size_t length;
 		char *command;
 
+		pthread_t monitor_thread;
+
 		int old_stdout, old_stderr;
 
 		int client_fd = accept(socket_fd, NULL, NULL);
@@ -842,6 +879,24 @@ command_server(void *user_data)
 		pthread_mutex_lock(&lua_mutex);
 
 		/*
+		 * Start another thread monitoring client_fd and setting
+		 * the interrupted flag in case the remote end terminates
+		 * prematurely. This has the effect of ^C in SciTECO interrupting
+		 * the current command (e.g. play()) at least when using
+		 * socat (see monitor_thread_cb()).
+		 * A monitoring thread is started instead of running do_command()
+		 * in yet another thread since the monitoring thread is easier
+		 * to terminate.
+		 */
+		if (pthread_create(&monitor_thread, NULL, monitor_thread_cb, &client_fd)) {
+			perror("pthread_create");
+			pthread_mutex_unlock(&lua_mutex);
+			free(command);
+			close(client_fd);
+			continue;
+		}
+
+		/*
 		 * Redirect stdout and stderr to client_fd.
 		 * This way, we capture all the output that the command
 		 * may have.
@@ -863,6 +918,14 @@ command_server(void *user_data)
 		 */
 		do_command(L, command);
 		free(command);
+
+		/*
+		 * Terminate the monitoring thread.
+		 * It will already be terminated if the remote end terminates
+		 * prematurely.
+		 */
+		pthread_cancel(monitor_thread);
+		pthread_join(monitor_thread, NULL);
 
 		/*
 		 * Restore stdout/stderr.

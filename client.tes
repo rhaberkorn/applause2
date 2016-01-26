@@ -1,19 +1,26 @@
+!*
+ * SciTECO Applause integration
+ *!
 
-! Applause client: Evaluate command !
-@#ae{
-  X[applause.output]
+! Send command in "applause.output". Used only internally !
+@[applause.command]{
   EQ[applause.output]
   Z\ 5-.<I > 10I
-  HECnc 127.0.0.1 10000 J
+  HECsocat -,ignoreeof TCP:127.0.0.1:10000 J
   Z"= Q*U* '
 }
 
-! Print command !
+! Evaluate command !
+@#ae{
+  X[applause.output] :M[applause.command]
+}
+
+! Show expression output !
+@#as{
+  ([applause.output]=) :X[applause.output] :M[applause.command]
+}
+
+! Play expression/stream !
 @#ap{
-  X[applause.output]
-  EQ[applause.output]
-  I= R
-  Z\ 5-.<I > 10I
-  HECnc 127.0.0.1 10000 J
-  Z"= Q*U* '
+  X[applause.output] :[applause.output]:play() :M[applause.command]
 }
