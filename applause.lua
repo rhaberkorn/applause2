@@ -327,6 +327,20 @@ function Stream:ravel()
 	return RavelStream:new(self)
 end
 
+function Stream:mix(other, wetness)
+	wetness = wetness or 0.5
+	return self:mul(1 - wetness) + other:mul(wetness)
+end
+
+function Stream:delay(length)
+	return DelayStream:new(self, length)
+end
+
+function Stream:echo(length, wetness)
+	local synced = self:sync()
+	return synced:mix(synced:delay(length), wetness)
+end
+
 -- This is a linear resampler thanks to the
 -- semantics of IndexStream
 function Stream:resample(factor)
@@ -1507,6 +1521,43 @@ function PinkNoiseStream:tick()
 
 		return (random()*2 - 1 + pink)*0.125
 	end
+end
+
+--
+-- Delay Lines
+-- NOTE: Echoing could be implemented here as well since
+-- delay lines are only an application of echoing with a wetness of 1.0.
+-- However this complicates matters because we have to handle nil.
+--
+
+DelayStream = DeriveClass(MuxableStream)
+
+DelayStream.sig_last_stream = 1
+
+function DelayStream:muxableCtor(stream, length)
+	self.streams = {stream}
+	self.length = length
+	if length < 1 then error("Invalid delay line length") end
+end
+
+function DelayStream:tick()
+	local tick = self.streams[1]:tick()
+	local length = self.length
+	local buffer = table.new(length, 0)
+	local buffer_pos = 1
+
+	for i = 1, length do buffer[i] = 0 end
+
+	return function()
+		local sample = buffer[buffer_pos]
+		buffer[buffer_pos] = tick()
+		buffer_pos = (buffer_pos % length) + 1
+		return sample
+	end
+end
+
+function DelayStream:len()
+	return self.length + self.streams[1]:len()
 end
 
 --
