@@ -226,6 +226,7 @@ end
 function Stream:map(fnc)
 	return MapStream:new(self, fnc)
 end
+Stream["\u{00A8}"] = Stream.map -- APL Double-Dot
 
 -- Register all unary functions from the math package
 -- as stream operations/methods (creates a stream that calls
@@ -263,7 +264,7 @@ function Stream:add(n)
 	return self:map(function(x) return x+n end)
 end
 
-function Stream:sub(n)
+function Stream:minus(n)
 	return self:map(function(x) return x-n end)
 end
 
@@ -271,10 +272,12 @@ function Stream:mul(n)
 	return self:map(function(x) return x*n end)
 end
 Stream.gain = Stream.mul
+Stream["\u{00D7}"] = Stream.mul -- APL Multiply/Signum
 
 function Stream:div(n)
 	return self:map(function(x) return x/n end)
 end
+Stream["\u{00F7}"] = Stream.div -- APL Divide
 
 function Stream:mod(n)
 	return self:map(function(x) return x%n end)
@@ -283,6 +286,7 @@ end
 function Stream:pow(n)
 	return self:map(function(x) return x^n end)
 end
+Stream["\u{22C6}"] = Stream.pow -- APL Exponentiation
 
 function Stream:clip(min, max)
 	min = min or -1
@@ -371,6 +375,7 @@ end
 function Stream.SinOsc(freq)
 	return Stream.Phasor(freq):mul(2*math.pi):sin()
 end
+Stream["\u{25CB}"] = Stream.SinOsc -- APL Circle
 
 -- Pulse between 0 and 1 in half a period (width = 0.5)
 function Stream.PulseOsc(freq)
@@ -1706,6 +1711,7 @@ function tostream(v)
 end
 
 function iota(...) return IotaStream:new(...) end
+_G["\u{2373}"] = iota -- APL Iota
 
 function line(v1, t, v2)
 	return iota(t):mul((v2-v1)/t):add(v1)
