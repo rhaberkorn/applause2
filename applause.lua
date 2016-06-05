@@ -5,8 +5,9 @@ local ffi = require "ffi"
 -- the FFI namespace
 local C = ffi.C
 
--- Make table.new() available (a LuaJIT extension)
+-- Make table.new()/table.clear() available (a LuaJIT extension)
 require "table.new"
+require "table.clear"
 
 -- Useful in order to make the module reloadable
 local function cdef_safe(def)
@@ -95,15 +96,10 @@ samplerate = 44100
 function sec(x) return math.floor(samplerate*(x or 1)) end
 function msec(x) return sec((x or 1)/1000) end
 
--- The clock signal:
--- In order to support (re)using the same stream more than
--- once in a complex stream without recalculating everything,
--- tick closures must be shared among all usages of a stream.
--- A clock signal is necessary to "trigger" the recalculation
--- of a stream's current sample.
--- The clock signal is a boolean oscillating between true and
--- false.
-local clock_signal = false
+-- The sample cache used to implement CachedStream.
+-- We don't know how large it must be, but once it is
+-- allocated we only table.clear() it.
+local sampleCache = {}
 
 -- Reload the main module: Useful for hacking it without
 -- restarting applause
@@ -205,18 +201,18 @@ function Stream:tick()
 	end
 end
 
+-- FIXME: Do we still need all substreams to be in the
+-- the streams array?
 Stream.streams = {}
-function Stream:reset()
-	for i = 1, #self.streams do
-		self.streams[i]:reset()
-	end
-end
 
--- Explicitly clock-sync a stream.
+-- Cache this stream value to avoid recalculation within
+-- the same tick (ie. point in time). This may happen when
+-- a stream is used multiple times in the same "patch".
 -- FIXME: This should be done automatically by an optimizer stage.
--- FIXME: That is counter-productive for simple number streams
-function Stream:sync()
-	return SyncedStream:new(self)
+-- FIXME: This is counter-productive for simple number streams
+-- (anything simpler than a table lookup)
+function Stream:cache()
+	return CachedStream:new(self)
 end
 
 function Stream:rep(repeats)
@@ -341,8 +337,8 @@ function Stream:delay(length)
 end
 
 function Stream:echo(length, wetness)
-	local synced = self:sync()
-	return synced:mix(synced:delay(length), wetness)
+	local cached = self:cache()
+	return cached:mix(cached:delay(length), wetness)
 end
 
 -- This is a linear resampler thanks to the
@@ -500,13 +496,13 @@ end
 -- NOTE: This implementation is for single-channel streams
 -- only. See also MuxStream:foreach()
 function Stream:foreach(fnc)
-	self:reset()
+	local clear = table.clear
 
 	local frame = table.new(1, 0)
 	local tick = self:tick()
 
 	while true do
-		clock_signal = not clock_signal
+		clear(sampleCache)
 
 		frame[1] = tick()
 		if not frame[1] or fnc(frame) then break end
@@ -805,7 +801,7 @@ end
 -- however this results in the loop to be unrolled explicitly
 -- for single-channel streams.
 function MuxStream:foreach(fnc)
-	self:reset()
+	local clear = table.clear
 
 	local ticks = {}
 	for i = 1, #self.streams do
@@ -816,7 +812,7 @@ function MuxStream:foreach(fnc)
 	local frame = table.new(channels, 0)
 
 	while true do
-		clock_signal = not clock_signal
+		clear(sampleCache)
 
 		for i = 1, channels do
 			frame[i] = ticks[i]()
@@ -833,11 +829,11 @@ end
 function DupMux(stream, channels)
 	channels = channels or 2
 
-	local synced = tostream(stream):sync()
+	local cached = tostream(stream):cache()
 	-- FIXME: May need a list creation function
 	local streams = {}
 	for j = 1, channels do
-		streams[j] = synced
+		streams[j] = cached
 	end
 
 	return MuxStream:new(unpack(streams))
@@ -903,37 +899,26 @@ function MuxableStream:ctor(...)
 	return MuxStream:new(unpack(channel_streams))
 end
 
-SyncedStream = DeriveClass(MuxableStream)
+CachedStream = DeriveClass(MuxableStream)
 
-function SyncedStream:muxableCtor(stream)
+function CachedStream:muxableCtor(stream)
 	self.streams = {stream}
 end
 
-function SyncedStream:reset()
-	self.syncedTick = nil
-	Stream.reset(self)
-end
+function CachedStream:tick()
+	local tick = self.streams[1]:tick()
 
-function SyncedStream:tick()
-	if not self.syncedTick then
-		local last_clock
-		local last_sample
-
-		local tick = self.streams[1]:tick()
-
-		function self.syncedTick()
-			if clock_signal ~= last_clock then
-				last_clock = clock_signal
-				last_sample = tick()
-			end
-			return last_sample
+	return function()
+		local sample = sampleCache[self]
+		if not sample then
+			sample = tick()
+			sampleCache[self] = sample
 		end
+		return sample
 	end
-
-	return self.syncedTick
 end
 
-function SyncedStream:len()
+function CachedStream:len()
 	return self.streams[1]:len()
 end
 
@@ -959,25 +944,22 @@ function VectorStream:len()
 	return #self.vector
 end
 
--- NOTE: A SndfileStream itself cannot currently be reused within
--- one high-level stream (i.e. UGen graph).
--- SndfileStream:sync() must be called to wrap it in a
--- synced stream manually. This is done automatically and necessarily
--- for multi-channel streams already.
--- FIXME: This will no longer be necessary when syncing
--- streams automatically in an optimization phase.
 SndfileStream = DeriveClass(Stream)
 
 function SndfileStream:ctor(filename)
 	-- FIXME: This fails if the file is not at the
 	-- correct sample rate. Need to resample...
-	self.handle = sndfile:new(filename, "SFM_READ")
+	local handle = sndfile:new(filename, "SFM_READ")
+	self.filename = filename
+	self.channels = handle.info.channels
+	self.frames = tonumber(handle.info.frames)
+	handle:close()
 
-	if self.handle.info.channels > 1 then
-		local synced = self:sync()
+	if self.channels > 1 then
+		local cached = self:cache()
 		local streams = {}
-		for i = 0, self.handle.info.channels-1 do
-			streams[i+1] = synced:map(function(frame)
+		for i = 0, self.channels-1 do
+			streams[i+1] = cached:map(function(frame)
 				return tonumber(frame[i])
 			end)
 		end
@@ -985,40 +967,42 @@ function SndfileStream:ctor(filename)
 	end
 end
 
-function SndfileStream:reset()
-	self.handle:seek(0)
-	Stream.reset(self)
-end
-
 function SndfileStream:tick()
-	local handle = self.handle
+	-- The file is reopened, so each tick has an independent
+	-- read pointer which is important when reusing the stream.
+	-- NOTE: We could do this with a single handle per object but
+	-- by maintaining our own read position and seeking before reading.
+	local handle = sndfile:new(self.filename, "SFM_READ")
 
-	if handle.info.channels == 1 then
+	-- Make sure that we are still reading the same file;
+	-- at least with the same meta-data.
+	-- Theoretically, the file could have changed since object
+	-- construction.
+	assert(handle.info.channels == self.channels and
+	       handle.info.frames == self.frames,
+	       "Sndfile changed")
+
+	if self.channels == 1 then
+		local read = handle.read
+
 		return function()
-			return handle:read()
+			return read(handle)
 		end
 	else
 		-- For multi-channel audio files, we generate a stream
 		-- of frame buffers.
 		-- However, the user never sees these since they are translated
 		-- to a MuxStream automatically (see ctor())
-		local frame = sndfile.frame_type(handle.info.channels)
+		local readf = handle.readf
+		local frame = sndfile.frame_type(self.channels)
 
 		return function()
-			return handle:readf(frame) and frame or nil
+			return readf(handle, frame) and frame or nil
 		end
 	end
 end
 
-function SndfileStream:len()
-	return tonumber(self.handle.info.frames)
-end
-
--- Sometimes it may be useful to explicitly close the file
--- handle behind a SndfileStream
-function SndfileStream:close()
-	self.handle:close()
-end
+function SndfileStream:len() return self.frames end
 
 ConcatStream = DeriveClass(MuxableStream)
 
