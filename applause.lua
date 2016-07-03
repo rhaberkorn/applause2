@@ -1682,6 +1682,64 @@ end
 
 function Stream:ftom() return self:map(ftom) end
 
+InstrumentStream = DeriveClass(MuxableStream)
+
+InstrumentStream.sig_last_stream = 1
+
+function InstrumentStream:muxableCtor(note_stream, on_stream, off_stream)
+	note_stream = tostream(note_stream):cache()
+
+	if type(on_stream) == "function" then
+		on_stream = on_stream(self.note_stream)
+	else
+		on_stream = tostream(on_stream)
+	end
+	if type(off_stream) == "function" then
+		off_stream = off_stream(self.note_stream)
+	else
+		-- The "off" stream is optional
+		off_stream = off_stream and tostream(off_stream)
+	end
+
+	self.streams = {note_stream, on_stream, off_stream}
+end
+
+function InstrumentStream:tick()
+	local note_tick = self.streams[1]:tick()
+	local on_stream = self.streams[2]
+	local off_stream = self.streams[3]
+	local on_tick
+	local function off_tick() return 0 end
+
+	return function()
+		local note = note_tick()
+		if not note then return end
+
+		if on_tick == nil then -- no note
+			if note == 0 then return off_tick() or 0 end
+
+			-- FIXME: This is not strictly real-time safe
+			on_tick = on_stream:tick()
+			return on_tick() or 0
+		else -- note on
+			if note ~= 0 then return on_tick() or 0 end
+
+			-- FIXME: This is not strictly real-time safe
+			on_tick = nil
+			off_tick = off_stream and off_stream:tick()
+			return off_tick() or 0
+		end
+	end
+end
+
+function InstrumentStream:len()
+	return self.streams[1]:len()
+end
+
+function Stream:instrument(on_stream, off_stream)
+	return InstrumentStream:new(self, on_stream, off_stream)
+end
+
 -- primitives
 
 function tostream(v)
