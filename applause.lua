@@ -201,10 +201,6 @@ function Stream:gtick()
 	end
 end
 
--- FIXME: Do we still need all substreams to be in the
--- the streams array?
-Stream.streams = {}
-
 -- Cache this stream value to avoid recalculation within
 -- the same tick (ie. point in time). This may happen when
 -- a stream is used multiple times in the same "patch".
@@ -890,6 +886,7 @@ function MuxableStream:ctor(...)
 
 	for channel = 1, args[first_stream].channels do
 		for i = first_stream, last_stream do
+			assert(args[i]:instanceOf(MuxStream))
 			mono_args[i] = args[i].streams[channel]
 		end
 
@@ -902,11 +899,11 @@ end
 CachedStream = DeriveClass(MuxableStream)
 
 function CachedStream:muxableCtor(stream)
-	self.streams = {stream}
+	self.stream = stream
 end
 
 function CachedStream:gtick()
-	local tick = self.streams[1]:gtick()
+	local tick = self.stream:gtick()
 
 	return function()
 		local sample = sampleCache[self]
@@ -919,7 +916,7 @@ function CachedStream:gtick()
 end
 
 function CachedStream:len()
-	return self.streams[1]:len()
+	return self.stream:len()
 end
 
 VectorStream = DeriveClass(Stream)
@@ -1067,18 +1064,19 @@ RepeatStream = DeriveClass(MuxableStream)
 RepeatStream.sig_last_stream = 1
 
 function RepeatStream:muxableCtor(stream, repeats)
-	self.streams = {stream}
+	self.stream = stream
 	self.repeats = repeats or math.huge
 end
 
 function RepeatStream:gtick()
 	local i = 1
-	local stream_tick = self.streams[1]:gtick()
+	local stream = self.stream
+	local tick = stream:gtick()
 	local repeats = self.repeats
 
 	return function()
 		while i <= repeats do
-			local sample = stream_tick()
+			local sample = tick()
 			if sample then return sample end
 
 			-- next iteration
@@ -1086,13 +1084,13 @@ function RepeatStream:gtick()
 			-- FIXME: The tick() method itself may be too
 			-- inefficient for realtime purposes.
 			-- Also, we may slowly leak memory.
-			stream_tick = self.streams[1]:gtick()
+			tick = stream:gtick()
 		end
 	end
 end
 
 function RepeatStream:len()
-	return self.streams[1]:len() * self.repeats
+	return self.stream:len() * self.repeats
 end
 
 -- Ravel operation inspired by APL.
@@ -1102,11 +1100,11 @@ end
 RavelStream = DeriveClass(MuxableStream)
 
 function RavelStream:muxableCtor(stream)
-	self.streams = {stream}
+	self.stream = stream
 end
 
 function RavelStream:gtick()
-	local stream_tick = self.streams[1]:gtick()
+	local stream_tick = self.stream:gtick()
 	local current_tick = nil
 
 	return function()
@@ -1131,7 +1129,7 @@ function RavelStream:gtick()
 end
 
 function RavelStream:len()
-	if self.streams[1]:len() == math.huge then
+	if self.stream:len() == math.huge then
 		-- FIXME: Actually, it is possible that the stream
 		-- is infinite but consists only of empty streams.
 		-- In this case, tick() will be stuck in an infinite loop...
@@ -1139,7 +1137,7 @@ function RavelStream:len()
 	end
 
 	local len = 0
-	local t = self.streams[1]:totable()
+	local t = self.stream:totable()
 
 	for i = 1, #t do
 		len = len + (type(t[i]) == "table" and t[i].is_a_stream and
@@ -1188,11 +1186,11 @@ SubStream = DeriveClass(MuxableStream)
 SubStream.sig_last_stream = 1
 
 function SubStream:muxableCtor(stream, i, j)
-	self.streams = {stream}
+	self.stream = stream
 	self.i = i
 	self.j = j or -1
 
-	local stream_len = self.streams[1]:len()
+	local stream_len = self.stream:len()
 
 	if self.i < 0 then self.i = self.i + stream_len + 1 end
 	if self.j < 0 then self.j = self.j + stream_len + 1 end
@@ -1204,7 +1202,7 @@ function SubStream:muxableCtor(stream, i, j)
 end
 
 function SubStream:gtick()
-	local tick = self.streams[1]:gtick()
+	local tick = self.stream:gtick()
 
 	-- OPTIMIZE: Perhaps ask stream to skip the first
 	-- self.i-1 samples
@@ -1230,16 +1228,15 @@ end
 IndexStream = DeriveClass(MuxableStream)
 
 function IndexStream:muxableCtor(stream, index_stream)
-	-- NOTE: For stream resetting to work and to simplify
-	-- future optimization passes, all streams are in the streams array
-	self.streams = {stream, index_stream}
+	self.stream = stream
+	self.index_stream = index_stream
 end
 
 function IndexStream:gtick()
-	local stream_tick = self.streams[1]:gtick()
-	local index_tick = self.streams[2]:gtick()
+	local stream_tick = self.stream:gtick()
+	local index_tick = self.index_stream:gtick()
 
-	local stream_len = self.streams[1]:len()
+	local stream_len = self.stream:len()
 
 	-- avoid math table lookup at sample rate
 	local huge = math.huge
@@ -1275,8 +1272,7 @@ function IndexStream:gtick()
 end
 
 function IndexStream:len()
-	-- Length of the indexing stream
-	return self.streams[2]:len()
+	return self.index_stream:len()
 end
 
 MapStream = DeriveClass(MuxableStream)
@@ -1285,12 +1281,12 @@ MapStream = DeriveClass(MuxableStream)
 MapStream.sig_last_stream = 1
 
 function MapStream:muxableCtor(stream, fnc)
-	self.streams = {stream}
+	self.stream = stream
 	self.fnc = fnc
 end
 
 function MapStream:gtick()
-	local tick = self.streams[1]:gtick()
+	local tick = self.stream:gtick()
 
 	return function()
 		local sample = tick()
@@ -1299,7 +1295,7 @@ function MapStream:gtick()
 end
 
 function MapStream:len()
-	return self.streams[1]:len()
+	return self.stream:len()
 end
 
 ScanStream = DeriveClass(MuxableStream)
@@ -1308,12 +1304,12 @@ ScanStream = DeriveClass(MuxableStream)
 ScanStream.sig_last_stream = 1
 
 function ScanStream:muxableCtor(stream, fnc)
-	self.streams = {stream}
+	self.stream = stream
 	self.fnc = fnc
 end
 
 function ScanStream:gtick()
-	local tick = self.streams[1]:gtick()
+	local tick = self.stream:gtick()
 	local last_sample = nil
 
 	return function()
@@ -1326,7 +1322,7 @@ function ScanStream:gtick()
 end
 
 function ScanStream:len()
-	return self.streams[1]:len()
+	return self.stream:len()
 end
 
 FoldStream = DeriveClass(MuxableStream)
@@ -1335,12 +1331,12 @@ FoldStream = DeriveClass(MuxableStream)
 FoldStream.sig_last_stream = 1
 
 function FoldStream:muxableCtor(stream, fnc)
-	self.streams = {stream}
+	self.stream = stream
 	self.fnc = fnc
 end
 
 function FoldStream:gtick()
-	local tick = self.streams[1]:gtick()
+	local tick = self.stream:gtick()
 
 	return function()
 		local l, r
@@ -1357,7 +1353,7 @@ function FoldStream:gtick()
 end
 
 function FoldStream:len()
-	return self.streams[1]:len() > 0 and 1 or 0
+	return self.stream:len() > 0 and 1 or 0
 end
 
 -- ZipStream combines any number of streams into a single
@@ -1524,13 +1520,13 @@ DelayStream = DeriveClass(MuxableStream)
 DelayStream.sig_last_stream = 1
 
 function DelayStream:muxableCtor(stream, length)
-	self.streams = {stream}
+	self.stream = stream
 	self.length = length
 	if length < 1 then error("Invalid delay line length") end
 end
 
 function DelayStream:gtick()
-	local tick = self.streams[1]:gtick()
+	local tick = self.stream:gtick()
 	local length = self.length
 	local buffer = table.new(length, 0)
 	local buffer_pos = 1
@@ -1546,7 +1542,7 @@ function DelayStream:gtick()
 end
 
 function DelayStream:len()
-	return self.length + self.streams[1]:len()
+	return self.length + self.stream:len()
 end
 
 --
@@ -1687,27 +1683,25 @@ InstrumentStream = DeriveClass(MuxableStream)
 InstrumentStream.sig_last_stream = 1
 
 function InstrumentStream:muxableCtor(note_stream, on_stream, off_stream)
-	note_stream = tostream(note_stream):cache()
+	self.note_stream = tostream(note_stream):cache()
 
 	if type(on_stream) == "function" then
-		on_stream = on_stream(self.note_stream)
+		self.on_stream = on_stream(self.note_stream)
 	else
-		on_stream = tostream(on_stream)
+		self.on_stream = tostream(on_stream)
 	end
 	if type(off_stream) == "function" then
-		off_stream = off_stream(self.note_stream)
+		self.off_stream = off_stream(self.note_stream)
 	else
 		-- The "off" stream is optional
-		off_stream = off_stream and tostream(off_stream)
+		self.off_stream = off_stream and tostream(off_stream)
 	end
-
-	self.streams = {note_stream, on_stream, off_stream}
 end
 
 function InstrumentStream:gtick()
-	local note_tick = self.streams[1]:gtick()
-	local on_stream = self.streams[2]
-	local off_stream = self.streams[3]
+	local note_tick = self.note_stream:gtick()
+	local on_stream = self.on_stream
+	local off_stream = self.off_stream
 	local on_tick
 	local function off_tick() return 0 end
 
@@ -1733,7 +1727,7 @@ function InstrumentStream:gtick()
 end
 
 function InstrumentStream:len()
-	return self.streams[1]:len()
+	return self.note_stream:len()
 end
 
 function Stream:instrument(on_stream, off_stream)
@@ -1816,9 +1810,8 @@ end
 FIRStream = DeriveClass(Stream)
 
 function FIRStream:ctor(stream, freq_stream)
-	-- NOTE: For stream resetting to work and to simplify
-	-- future optimization passes, all streams are in the streams array
-	self.streams = {tostream(stream), tostream(freq_stream)}
+	self.stream = tostream(stream)
+	self.freq_stream = tostream(freq_stream)
 end
 
 function FIRStream:gtick()
@@ -1828,15 +1821,15 @@ function FIRStream:gtick()
 	-- this is the max. latency introduced by the filter
 	-- since the window must be filled before we can generate
 	-- (filtered) samples
-	local window_size = math.min(1024, self.streams[1]:len())
+	local window_size = math.min(1024, self.stream:len())
 	local window_p = window_size-1
 	local accu = 0
 
 	local blackman = {}
 	for i = 1, window_size do blackman[i] = Blackman(i-1, window_size) end
 
-	local tick = self.streams[1]:gtick()
-	local freq_tick = self.streams[2]:gtick()
+	local tick = self.stream:gtick()
+	local freq_tick = self.freq_stream:gtick()
 
 	return function()
 		-- fill buffer (initial)
@@ -1864,7 +1857,7 @@ function FIRStream:gtick()
 end
 
 function FIRStream:len()
-	return self.streams[1]:len()
+	return self.stream:len()
 end
 ]==]
 
@@ -1885,9 +1878,8 @@ end
 LPFStream = DeriveClass(MuxableStream)
 
 function LPFStream:muxableCtor(stream, freq)
-	-- NOTE: For stream resetting to work and to simplify
-	-- future optimization passes, all streams are in the streams array
-	self.streams = {stream, freq}
+	self.stream = stream
+	self.freq_stream = freq
 end
 
 function LPFStream:gtick()
@@ -1901,8 +1893,8 @@ function LPFStream:gtick()
 	-- some cached math table lookups
 	local tan = math.tan
 
-	local tick = self.streams[1]:gtick()
-	local freq_tick = self.streams[2]:gtick()
+	local tick = self.stream:gtick()
+	local freq_tick = self.freq_stream:gtick()
 	local cur_freq = nil
 
 	return function()
@@ -1939,15 +1931,14 @@ function LPFStream:gtick()
 end
 
 function LPFStream:len()
-	return self.streams[1]:len()
+	return self.stream:len()
 end
 
 HPFStream = DeriveClass(MuxableStream)
 
 function HPFStream:muxableCtor(stream, freq)
-	-- NOTE: For stream resetting to work and to simplify
-	-- future optimization passes, all streams are in the streams array
-	self.streams = {stream, freq}
+	self.stream = stream
+	self.freq_stream = freq
 end
 
 function HPFStream:gtick()
@@ -1961,8 +1952,8 @@ function HPFStream:gtick()
 	-- some cached math table lookups
 	local tan = math.tan
 
-	local tick = self.streams[1]:gtick()
-	local freq_tick = self.streams[2]:gtick()
+	local tick = self.stream:gtick()
+	local freq_tick = self.freq_stream:gtick()
 	local cur_freq = nil
 
 	-- NOTE: Very similar to LPFStream.gtick()
@@ -2004,7 +1995,7 @@ function HPFStream:gtick()
 end
 
 function HPFStream:len()
-	return self.streams[1]:len()
+	return self.stream:len()
 end
 
 -- NOTE: The quality factor, indirectly proportional
@@ -2015,9 +2006,8 @@ BPFStream = DeriveClass(MuxableStream)
 BPFStream.sig_last_stream = 2
 
 function BPFStream:muxableCtor(stream, freq, quality)
-	-- NOTE: For stream resetting to work and to simplify
-	-- future optimization passes, all streams are in the streams array
-	self.streams = {stream, freq}
+	self.stream = stream
+	self.freq_stream = freq
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
 end
@@ -2034,8 +2024,8 @@ function BPFStream:gtick()
 	local tan = math.tan
 	local cos = math.cos
 
-	local tick = self.streams[1]:gtick()
-	local freq_tick = self.streams[2]:gtick()
+	local tick = self.stream:gtick()
+	local freq_tick = self.freq_stream:gtick()
 	local cur_freq = nil
 
 	return function()
@@ -2074,7 +2064,7 @@ function BPFStream:gtick()
 end
 
 function BPFStream:len()
-	return self.streams[1]:len()
+	return self.stream:len()
 end
 
 -- NOTE: The quality factor, indirectly proportional
@@ -2085,7 +2075,8 @@ BRFStream = DeriveClass(MuxableStream)
 BRFStream.sig_last_stream = 2
 
 function BRFStream:muxableCtor(stream, freq, quality)
-	self.streams = {stream, freq}
+	self.stream = stream
+	self.freq_stream = freq
 	-- FIXME: Does this make sense to be a stream?
 	self.quality = quality
 end
@@ -2102,8 +2093,8 @@ function BRFStream:gtick()
 	local tan = math.tan
 	local cos = math.cos
 
-	local tick = self.streams[1]:gtick()
-	local freq_tick = self.streams[2]:gtick()
+	local tick = self.stream:gtick()
+	local freq_tick = self.freq_stream:gtick()
 	local cur_freq = nil
 
 	-- NOTE: Very similar to BPFStream.gtick()
@@ -2143,7 +2134,7 @@ function BRFStream:gtick()
 end
 
 function BRFStream:len()
-	return self.streams[1]:len()
+	return self.stream:len()
 end
 
 --
