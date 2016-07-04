@@ -1678,24 +1678,39 @@ end
 
 function Stream:ftom() return self:map(ftom) end
 
+-- Tick an instrument only when an inputstream (note_stream),
+-- gets ~= 0. When it changes back to 0 again, an "off"-stream
+-- is triggered. This allows the construction of instruments with
+-- Attack-Sustain and Decay phases based on real-time control signals.
+-- The note values can be passed into the constructor by using functions
+-- for the "on" and "off" streams.
+-- Usually, the note stream will be a MIDIVelocityStream, so the two
+-- instrument streams can be based on the MIDI velocity (but don't have
+-- to be if the velocity is not important).
 InstrumentStream = DeriveClass(MuxableStream)
 
 InstrumentStream.sig_last_stream = 1
 
 function InstrumentStream:muxableCtor(note_stream, on_stream, off_stream)
-	self.note_stream = tostream(note_stream):cache()
+	note_stream = tostream(note_stream)
+	local note_stream_cached
 
 	if type(on_stream) == "function" then
-		self.on_stream = on_stream(self.note_stream)
+		note_stream_cached = note_stream:cache()
+		self.on_stream = on_stream(note_stream_cached)
 	else
 		self.on_stream = tostream(on_stream)
 	end
 	if type(off_stream) == "function" then
-		self.off_stream = off_stream(self.note_stream)
+		note_stream_cached = note_stream_cached or note_stream:cache()
+		self.off_stream = off_stream(note_stream_cached)
 	else
 		-- The "off" stream is optional
 		self.off_stream = off_stream and tostream(off_stream)
 	end
+
+	-- `note_stream` is cached only when required
+	self.note_stream = note_stream_cached or note_stream
 end
 
 function InstrumentStream:gtick()
@@ -1720,7 +1735,7 @@ function InstrumentStream:gtick()
 
 			-- FIXME: This is not strictly real-time safe
 			on_tick = nil
-			off_tick = off_stream and off_stream:gtick()
+			if off_stream then off_tick = off_stream:gtick() end
 			return off_tick() or 0
 		end
 	end
