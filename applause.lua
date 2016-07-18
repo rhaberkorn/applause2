@@ -340,7 +340,7 @@ end
 -- This is a linear resampler thanks to the
 -- semantics of IndexStream
 function Stream:resample(factor)
-	return self[iota(math.floor(self:len() * factor)):div(factor)]
+	return self[line(1, math.floor(self:len() / factor), self:len())]
 end
 
 --
