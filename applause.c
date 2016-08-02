@@ -957,9 +957,20 @@ static const NativeMethod native_methods[] = {
 	{NULL, NULL, NULL}
 };
 
+static void
+usage(const char *program)
+{
+	printf("%s [-h] [-o OUTPUT] [-b SIZE]\n"
+	       "\tOUTPUT\tNumber of output ports to reserve (default: %d)\n"
+	       "\tSIZE\tMinimum size of the output buffer in milliseconds (default: %dms)\n",
+	       program,
+	       DEFAULT_NUMBER_OF_OUTPUT_PORTS, DEFAULT_BUFFER_SIZE);
+}
+
 int
 main(int argc, char **argv)
 {
+	int opt;
 	int buffer_size = DEFAULT_BUFFER_SIZE;
 	struct sigaction signal_action;
 
@@ -967,13 +978,20 @@ main(int argc, char **argv)
 
 	pthread_t command_server_thread;
 
-	/*
-	 * FIXME: Support --help
-	 */
-	if (argc > 1)
-		output_ports_count = atoi(argv[1]);
-	if (argc > 2)
-		buffer_size = atoi(argv[2]);
+	while ((opt = getopt(argc, argv, "ho:b:")) >= 0) {
+		switch (opt) {
+		case '?':
+		case 'h': /* get help */
+			usage(argv[0]);
+			return 0;
+		case 'o': /* output ports */
+			output_ports_count = atoi(optarg);
+			break;
+		case 'b': /* buffer size */
+			buffer_size = atoi(optarg);
+			break;
+		}
+	}
 
 	/*
 	 * Register sigint_handler() as the SIGINT handler.
