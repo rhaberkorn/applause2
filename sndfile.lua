@@ -178,16 +178,11 @@ function sndfile:new(path, mode, samplerate, channels, format)
 		error(ffi.string(lib.sf_strerror(nil)))
 	end
 
+	obj.handle = ffi.gc(obj.handle, lib.sf_close)
+
 	obj.info = info[0]
 
-	-- NOTE: FFI also allows metatables and finalizers
-	-- to be set on the C-type itself.
-	setmetatable(obj, {
-		__index = self,
-		__gc = sndfile.close
-	})
-
-	return obj
+	return setmetatable(obj, {__index = self})
 end
 
 function sndfile:seek(frames, whence)
@@ -217,7 +212,9 @@ end
 
 function sndfile:close()
 	if self.handle then
-		lib.sf_close(self.handle)
+		-- NOTE: Finalizer must be removed to avoid a
+		-- double-close here and later by the garbage collector.
+		lib.sf_close(ffi.gc(self.handle, nil))
 		self.handle = nil
 	end
 end
