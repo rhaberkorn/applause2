@@ -1,6 +1,7 @@
 -- module table
 local sndfile = {}
 
+local bit = require "bit"
 local ffi = require "ffi"
 
 ffi.cdef[[
@@ -165,7 +166,8 @@ function sndfile:new(path, mode, samplerate, channels, format)
 
 	local info = ffi.new("SF_INFO[1]")
 
-	if mode ~= "SFM_READ" then
+	if mode == "SFM_WRITE" or
+	   (format and bit.band(format, ffi.C.SF_FORMAT_TYPEMASK) == ffi.C.SF_FORMAT_RAW) then
 		info[0].samplerate = samplerate or 44100
 		info[0].channels = channels or 1
 		info[0].format = format or sndfile.guess_format(path)

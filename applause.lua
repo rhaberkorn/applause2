@@ -303,6 +303,17 @@ function Stream:scale(v1, v2)
 	end)
 end
 
+-- same as Stream:scale() but for values between [0, 127]
+-- (ie. MIDI CC values)
+function Stream:ccscale(v1, v2)
+	local lower = v2 and v1 or 0
+	local upper = v2 or v1
+
+	return self:map(function(x)
+		return (x/127)*(upper - lower) + lower
+	end)
+end
+
 function Stream:scan(fnc)
 	return ScanStream:new(self, fnc)
 end
@@ -943,12 +954,17 @@ end
 
 SndfileStream = DeriveClass(Stream)
 
-function SndfileStream:ctor(filename)
+function SndfileStream:ctor(filename, samplerate, channels, format)
 	-- FIXME: This fails if the file is not at the
 	-- correct sample rate. Need to resample...
-	local handle = sndfile:new(filename, "SFM_READ")
+	-- NOTE: samplerate and channels are ignored unless SF_FORMAT_RAW
+	-- files are read.
+	local handle = sndfile:new(filename, "SFM_READ",
+	                           samplerate, channels, format)
 	self.filename = filename
+	self.samplerate = handle.info.samplerate
 	self.channels = handle.info.channels
+	self.format = handle.info.format
 	self.frames = tonumber(handle.info.frames)
 	handle:close()
 
@@ -969,7 +985,8 @@ function SndfileStream:gtick()
 	-- read pointer which is important when reusing the stream.
 	-- NOTE: We could do this with a single handle per object but
 	-- by maintaining our own read position and seeking before reading.
-	local handle = sndfile:new(self.filename, "SFM_READ")
+	local handle = sndfile:new(self.filename, "SFM_READ",
+	                           self.samplerate, self.channels, self.format)
 
 	-- Make sure that we are still reading the same file;
 	-- at least with the same meta-data.
