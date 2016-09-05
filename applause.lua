@@ -339,6 +339,13 @@ function Stream:mix(other, wetness)
 	return self:mul(1 - wetness) + other:mul(wetness)
 end
 
+function Stream:pan(location)
+	location = location or 0
+	local cached = self:cache()
+	return MuxStream:new(cached:mul(1-math.max(location, 0)),
+	                     cached:mul(1+math.min(location, 0)))
+end
+
 function Stream:delay(length)
 	return DelayStream:new(self, length)
 end
@@ -351,7 +358,13 @@ end
 -- This is a linear resampler thanks to the
 -- semantics of IndexStream
 function Stream:resample(factor)
-	return self[line(1, math.floor(self:len() / factor), self:len())]
+	-- FIXME FIXME FIXME
+	-- self:len()-1 is a workaround for a mysterious bug in LuaJIT
+	-- (still not fixed in v2.1 branch) where a comparison in
+	-- IndexStream would mysteriously fail.
+	-- A better workaround would probably be to disable the optimization
+	-- responsible...
+	return self[line(1, math.floor(self:len() / factor), self:len()-1)]
 end
 
 --
@@ -897,7 +910,7 @@ function MuxableStream:ctor(...)
 
 	for channel = 1, args[first_stream].channels do
 		for i = first_stream, last_stream do
-			assert(args[i]:instanceOf(MuxStream))
+			assert(args[i]:instanceof(MuxStream))
 			mono_args[i] = args[i].streams[channel]
 		end
 
@@ -1771,6 +1784,7 @@ end
 function InstrumentStream:gtick()
 	local note_tick = self.note_stream:gtick()
 	local on_stream = self.on_stream
+	local on_stream_inf = on_stream:len() == math.huge
 	local off_stream = self.off_stream
 	local on_tick
 	local function off_tick() return 0 end
@@ -1786,7 +1800,18 @@ function InstrumentStream:gtick()
 			on_tick = on_stream:gtick()
 			return on_tick() or 0
 		else -- note on
-			if note ~= 0 then return on_tick() or 0 end
+			if note ~= 0 then
+				local sample = on_tick()
+				if sample then return sample end
+
+				-- on_stream must be finite, retrigger
+				on_tick = on_stream:gtick()
+				return on_tick() or 0
+			elseif not on_stream_inf then
+				-- don't cut off finite on_streams
+				local sample = on_tick()
+				if sample then return sample end
+			end
 
 			-- FIXME: This is not strictly real-time safe
 			on_tick = nil
