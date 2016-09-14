@@ -606,8 +606,8 @@ function Stream:toplot(rows, cols)
 	rows = rows or 25
 	cols = cols or 80
 
-	local scaled = self:resample(cols / self:len())
-	                   :add(1):mul(rows/2):floor():totable()
+	local scaled = self:resample(self:len() / cols)
+	                   :add(1):mul((rows-1)/2):floor():add(1):totable()
 	local plot = {}
 
 	for i = 1, #scaled do
@@ -976,15 +976,15 @@ function SndfileStream:ctor(filename, samplerate, channels, format)
 	                           samplerate, channels, format)
 	self.filename = filename
 	self.samplerate = handle.info.samplerate
-	self.channels = handle.info.channels
+	self.channel_no = handle.info.channels
 	self.format = handle.info.format
 	self.frames = tonumber(handle.info.frames)
 	handle:close()
 
-	if self.channels > 1 then
+	if self.channel_no > 1 then
 		local cached = self:cache()
 		local streams = {}
-		for i = 0, self.channels-1 do
+		for i = 0, self.channel_no-1 do
 			streams[i+1] = cached:map(function(frame)
 				return tonumber(frame[i])
 			end)
@@ -999,17 +999,17 @@ function SndfileStream:gtick()
 	-- NOTE: We could do this with a single handle per object but
 	-- by maintaining our own read position and seeking before reading.
 	local handle = sndfile:new(self.filename, "SFM_READ",
-	                           self.samplerate, self.channels, self.format)
+	                           self.samplerate, self.channel_no, self.format)
 
 	-- Make sure that we are still reading the same file;
 	-- at least with the same meta-data.
 	-- Theoretically, the file could have changed since object
 	-- construction.
-	assert(handle.info.channels == self.channels and
+	assert(handle.info.channels == self.channel_no and
 	       handle.info.frames == self.frames,
 	       "Sndfile changed")
 
-	if self.channels == 1 then
+	if self.channel_no == 1 then
 		local read = handle.read
 
 		return function()
@@ -1021,7 +1021,7 @@ function SndfileStream:gtick()
 		-- However, the user never sees these since they are translated
 		-- to a MuxStream automatically (see ctor())
 		local readf = handle.readf
-		local frame = sndfile.frame_type(self.channels)
+		local frame = sndfile.frame_type(self.channel_no)
 
 		return function()
 			return readf(handle, frame) and frame or nil
@@ -1127,6 +1127,8 @@ end
 -- This removes one level of nesting from nested streams
 -- (e.g. streams of streams), and is semantically similar
 -- to folding the stream with the Concat operation.
+-- FIXME: This needs special support for MuxStreams
+-- (ie. a stream of stereo-streams)
 RavelStream = DeriveClass(MuxableStream)
 
 function RavelStream:muxableCtor(stream)
