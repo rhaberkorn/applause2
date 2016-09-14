@@ -375,41 +375,45 @@ end
 --
 
 -- Ramp from 0 to 1
-function Stream.Phasor(freq)
+function Stream.Phasor(freq, phase)
+	phase = phase or 0
+
 	return ScanStream:new(freq, function(accu, f)
-		return ((accu or 0) + f/samplerate) % 1
+		return ((accu or phase) + f/samplerate) % 1
 	end)
 end
 
 -- Saw tooth wave from -1 to 1
-function Stream.SawOsc(freq)
+function Stream.SawOsc(freq, phase)
+	phase = (phase or 0)*2+1
+
 	return ScanStream:new(freq, function(accu, f)
-		return ((accu or 1) + 2*f/samplerate) % 2
-	end):sub(1)
+		return ((accu or phase) + 2*f/samplerate) % 2
+	end):minus(1)
 end
 
-function Stream.SinOsc(freq)
-	return Stream.Phasor(freq):mul(2*math.pi):sin()
+function Stream.SinOsc(freq, phase)
+	return Stream.Phasor(freq, phase):mul(2*math.pi):sin()
 end
 Stream["\u{25CB}"] = Stream.SinOsc -- APL Circle
 
 -- Pulse between 0 and 1 in half a period (width = 0.5)
-function Stream.PulseOsc(freq)
-	return Stream.Phasor(freq):map(function(x)
+function Stream.PulseOsc(freq, phase)
+	return Stream.Phasor(freq, phase):map(function(x)
 		return x < 0.5 and 1 or 0
 	end)
 end
 
-function Stream.SqrOsc(freq)
-	return Stream.Phasor(freq):map(function(x)
+function Stream.SqrOsc(freq, phase)
+	return Stream.Phasor(freq, phase):map(function(x)
 		return x < 0.5 and 1 or -1
 	end)
 end
 
-function Stream.TriOsc(freq)
+function Stream.TriOsc(freq, phase)
 	local abs = math.abs
 
-	return Stream.SawOsc(freq):map(function(x)
+	return Stream.SawOsc(freq, phase):map(function(x)
 		return abs(x)*2 - 1
 	end)
 end
