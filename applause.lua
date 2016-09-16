@@ -1422,6 +1422,51 @@ end
 --   If given, this value will be returned by the @{Stream:new} method instead.
 -- @see Stream:ctor
 
+--
+-- A stream for retrieving data from Jack input ports.
+-- This will block until data is available so constructs
+-- like InputStream():save("foo.wav") are possible.
+--
+InputStream = DeriveClass(Stream)
+
+function InputStream:ctor(first_port, len)
+	first_port = first_port or 1
+	len = len or 1
+	assert(len >= 1, "Invalid length specified")
+
+	if len > 1 then
+		-- Since MuxStream is the only allowed multi-channel stream,
+		-- automatically mux for multichannel input streams.
+		local streams = {}
+		for i = 1, len do
+			streams[i] = InputStream:new(first_port+i-1)
+		end
+		return MuxStream:new(unpack(streams))
+	end
+
+	-- Single channel InputStream
+	self.port = first_port
+end
+
+function InputStream:gtick()
+	local port = self.port
+	local sample_buffer = ffi.new("double[1]")
+
+	return function()
+		local state = C.applause_pull_sample(port, sample_buffer)
+
+		-- React to buffer overruns.
+		-- This is done here instead of in the realtime thread
+		-- even though it is already overloaded, so as not to
+		-- affect other applications in the Jack graph.
+		if state == C.APPLAUSE_AUDIO_XRUN then
+			io.stderr:write("WARNING: Buffer overrun detected\n")
+		end
+
+		return tonumber(sample_buffer[0])
+	end
+end
+
 --- Class for caching streams.
 -- Cached streams are calculated only once per tick.
 -- @type CachedStream

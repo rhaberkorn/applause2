@@ -8,5 +8,7 @@ enum applause_audio_state {
 
 enum applause_audio_state applause_push_sample(int output_port_id,
                                                double sample_double);
+enum applause_audio_state applause_pull_sample(int input_port_id,
+                                               double *sample_double);
 
 int applause_is_interrupted(void);

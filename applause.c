@@ -51,24 +51,30 @@
 static jack_client_t		*client = NULL;
 
 #define DEFAULT_NUMBER_OF_OUTPUT_PORTS	1
+#define DEFAULT_NUMBER_OF_INPUT_PORTS	0
 #define DEFAULT_BUFFER_SIZE		100	/* milliseconds */
 
-typedef struct applause_output_port {
+typedef struct applause_io_port {
 	jack_port_t		*jack_port;
 	jack_ringbuffer_t	*buffer;
 	int			buffer_sem;
 	/**
-	 * True if a buffer underrun occurs.
+	 * True if a buffer underrun/overrun occurs.
 	 * FIXME: sig_atomic_t is probably the wrong type.
 	 * Perhaps use the Mintomic types.
 	 */
 	sig_atomic_t		buffer_xrun;
-} applause_output_port;
+} applause_io_port;
 
 /** List of Applause output ports */
-static applause_output_port *output_ports = NULL;
+static applause_io_port *output_ports = NULL;
 /** Number of Applause output ports */
 static int output_ports_count = DEFAULT_NUMBER_OF_OUTPUT_PORTS;
+
+/** List of Applause input ports */
+static applause_io_port *input_ports = NULL;
+/** Number of Applause input ports */
+static int input_ports_count = DEFAULT_NUMBER_OF_INPUT_PORTS;
 
 static lua_State		*L_global = NULL;
 
@@ -213,13 +219,18 @@ jack_process(jack_nframes_t nframes, void *arg)
 	void *midi_in;
 	jack_nframes_t midi_events;
 
+	/*
+	 * Fill the buffers of all output ports.
+	 * Does not block when there are insufficient samples
+	 * in the ring buffer (buffer underrun).
+	 * See also applause_push_sample().
+	 */
 	for (int i = 0; i < output_ports_count; i++) {
-		applause_output_port *port = output_ports + i;
+		applause_io_port *port = output_ports + i;
 		jack_default_audio_sample_t *out;
 		size_t r;
 
-		out = (jack_default_audio_sample_t *)
-			jack_port_get_buffer(port->jack_port, nframes);
+		out = jack_port_get_buffer(port->jack_port, nframes);
 
 		r = jack_ringbuffer_read(port->buffer, (char *)out, len);
 
@@ -238,7 +249,35 @@ jack_process(jack_nframes_t nframes, void *arg)
 		 * It might not be on every UNIX!?
 		 */
 		memset((char *)out + r, 0, len - r);
-		port->buffer_xrun |= len - r > 0;
+		port->buffer_xrun |= (r < len);
+	}
+
+	/*
+	 * Retrieve the data of all input ports.
+	 * It does not block when the ring buffer overflows.
+	 * See also applause_pull_sample().
+	 */
+	for (int i = 0; i < input_ports_count; i++) {
+		applause_io_port *port = input_ports + i;
+		jack_default_audio_sample_t *in;
+		size_t r;
+
+		in = jack_port_get_buffer(port->jack_port, nframes);
+
+		r = jack_ringbuffer_write(port->buffer, (const char *)in, len);
+
+		/*
+		 * The semaphore value corresponds with the number of readable
+		 * bytes in the buffer.
+		 * This operation should never block.
+		 */
+		if (r > 0)
+			svsem_op(port->buffer_sem, r);
+
+		/*
+		 * Record buffer overruns.
+		 */
+		port->buffer_xrun |= (r < len);
 	}
 
 	/*
@@ -346,7 +385,7 @@ init_audio(int buffer_size)
 	output_ports = calloc(output_ports_count, sizeof(*output_ports));
 
 	for (int i = 0; i < output_ports_count; i++) {
-		applause_output_port *port = output_ports + i;
+		applause_io_port *port = output_ports + i;
 		char name[256];
 
 		/*
@@ -376,6 +415,49 @@ init_audio(int buffer_size)
 		}
 
 		port->buffer_sem = svsem_init(buffer_bytes);
+		if (port->buffer_sem < 0) {
+			fprintf(stderr, "error initializing semaphore\n");
+			return 1;
+		}
+	}
+
+	/*
+	 * Create input ports
+	 */
+	free(input_ports);
+	input_ports = calloc(input_ports_count, sizeof(*input_ports));
+
+	for (int i = 0; i < input_ports_count; i++) {
+		applause_io_port *port = input_ports + i;
+		char name[256];
+
+		/*
+		 * NOTE: Port names must be unique.
+		 * FIXME: Make the names configurable.
+		 */
+		snprintf(name, sizeof(name), "input_%d", i+1);
+
+		port->jack_port = jack_port_register(client, name,
+		                                     JACK_DEFAULT_AUDIO_TYPE,
+		                                     JackPortIsInput, 0);
+		if (!port->jack_port) {
+			fprintf(stderr, "No more JACK ports available\n");
+			return 1;
+		}
+
+		/*
+		 * Initialize ring buffer of samples.
+		 * The semaphore is initialized with the same size
+		 * since it represents the bytes written to the ring
+		 * buffer.
+		 */
+		port->buffer = jack_ringbuffer_create(buffer_bytes);
+		if (!port->buffer) {
+			fprintf(stderr, "cannot create ringbuffer\n");
+			return 1;
+		}
+
+		port->buffer_sem = svsem_init(0);
 		if (port->buffer_sem < 0) {
 			fprintf(stderr, "error initializing semaphore\n");
 			return 1;
@@ -459,7 +541,7 @@ init_audio(int buffer_size)
 enum applause_audio_state
 applause_push_sample(int output_port_id, double sample_double)
 {
-	applause_output_port *port;
+	applause_io_port *port;
 	jack_default_audio_sample_t sample =
 			(jack_default_audio_sample_t)sample_double;
 
@@ -483,6 +565,62 @@ applause_push_sample(int output_port_id, double sample_double)
 
 	jack_ringbuffer_write(port->buffer, (const char *)&sample,
 	                      sizeof(sample));
+
+	if (unlikely(port->buffer_xrun)) {
+		port->buffer_xrun = 0;
+		return APPLAUSE_AUDIO_XRUN;
+	}
+
+	return APPLAUSE_AUDIO_OK;
+}
+
+/**
+ * Pull one Jack sample from the ring buffer.
+ *
+ * This function should be called from the InputStream:gtick()
+ * implementation, which is faster than calling Lua functions
+ * from a C implementation of InputStream:gtick() using the Lua C API.
+ *
+ * @param input_port_id The number of the input port.
+ *                      The first one being 1.
+ * @param sample_double The audio sample to write as a double (compatible
+ *                      with lua_Number).
+ *                      This is speed relevant since otherwise
+ *                      LuaJIT tries to translate to Jack's default
+ *                      float type.
+ */
+enum applause_audio_state
+applause_pull_sample(int input_port_id, double *sample_double)
+{
+	applause_io_port *port;
+	jack_default_audio_sample_t sample;
+
+	/*
+	 * NOTE: The alternative to reporting invalid port Ids here
+	 * would be exporting output_ports_count, so the Lua code can
+	 * check it and assert()ing here instead.
+	 */
+	if (unlikely(input_port_id < 1 || input_port_id > input_ports_count))
+		return APPLAUSE_AUDIO_INVALID_PORT;
+	port = input_ports + input_port_id - 1;
+
+	/*
+	 * We are about to "consume" one sample from the buffer.
+	 * This can block when the buffer is empty.
+	 * After this operation, we have __at least__ one sample available
+	 * for reading since jack_process() will only write to the
+	 * buffer.
+	 */
+	svsem_op(port->buffer_sem, -(int)sizeof(sample));
+
+	/*
+	 * NOTE: We cannot directly read into sample_double since it
+	 * may have a different storage size - jack_default_audio_sample_t
+	 * is usually a float.
+	 */
+	jack_ringbuffer_read(port->buffer, (char *)&sample,
+	                     sizeof(sample));
+	*sample_double = sample;
 
 	if (unlikely(port->buffer_xrun)) {
 		port->buffer_xrun = 0;
@@ -865,11 +1003,13 @@ static const NativeMethod native_methods[] = {
 static void
 usage(const char *program)
 {
-	printf("%s [-h] [-o OUTPUT] [-b SIZE] [SCRIPT [ARGS]]\n"
+	printf("%s [-h] [-o OUTPUT] [-i INPUT] [-b SIZE] [SCRIPT [ARGS]]\n"
 	       "\tOUTPUT\tNumber of output ports to reserve (default: %d)\n"
+	       "\tINPUT\tNumber of input ports to reserve (default: %d)\n"
 	       "\tSIZE\tMinimum size of the output buffer in milliseconds (default: %dms)\n",
 	       program,
-	       DEFAULT_NUMBER_OF_OUTPUT_PORTS, DEFAULT_BUFFER_SIZE);
+	       DEFAULT_NUMBER_OF_OUTPUT_PORTS, DEFAULT_NUMBER_OF_INPUT_PORTS,
+	       DEFAULT_BUFFER_SIZE);
 }
 
 int
@@ -883,7 +1023,7 @@ main(int argc, char **argv)
 
 	pthread_t command_server_thread;
 
-	while ((opt = getopt(argc, argv, "ho:b:")) >= 0) {
+	while ((opt = getopt(argc, argv, "ho:i:b:")) >= 0) {
 		switch (opt) {
 		case '?':
 		case 'h': /* get help */
@@ -891,6 +1031,9 @@ main(int argc, char **argv)
 			return 0;
 		case 'o': /* output ports */
 			output_ports_count = atoi(optarg);
+			break;
+		case 'i': /* input ports */
+			input_ports_count = atoi(optarg);
 			break;
 		case 'b': /* buffer size */
 			buffer_size = atoi(optarg);
