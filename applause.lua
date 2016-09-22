@@ -2121,8 +2121,6 @@ function HPFStream:gtick()
 			b2 = -(1.0 - sqrt2C + C2) * a0
 		end
 
-		local sample = tick()
-
 		local y0 = sample + b1*y1 + b2*y2
 		local result = a0 * (y0 - 2*y1 + y2)
 
@@ -2141,14 +2139,10 @@ end
 -- to the passband width
 BPFStream = DeriveClass(MuxableStream)
 
--- Trailing non-stream arguments
-BPFStream.sig_last_stream = 2
-
 function BPFStream:muxableCtor(stream, freq, quality)
 	self.stream = stream
 	self.freq_stream = freq
-	-- FIXME: Does this make sense to be a stream?
-	self.quality = quality
+	self.quality_stream = quality
 end
 
 function BPFStream:gtick()
@@ -2165,22 +2159,26 @@ function BPFStream:gtick()
 
 	local tick = self.stream:gtick()
 	local freq_tick = self.freq_stream:gtick()
-	local cur_freq = nil
+	local quality_tick = self.quality_stream:gtick()
+	local cur_freq, cur_quality
 
 	return function()
 		local sample = tick()
 		local freq = freq_tick()
+		local quality = quality_tick()
 
-		if sample == nil or freq == nil then
+		if sample == nil or freq == nil or quality == nil then
 			-- don't filter if we run out of frequency samples
 			return sample
-		elseif freq ~= cur_freq then
+		elseif freq ~= cur_freq or quality ~= cur_quality then
 			-- calculate filter coefficients
 			-- avoid recalculation for constant frequencies
+			-- and quality factors
 			cur_freq = freq
+			cur_quality = quality
 
 			local pfreq = cur_freq * radians_per_sample
-			local pbw = 1 / self.quality*pfreq*0.5
+			local pbw = 1 / cur_quality*pfreq*0.5
 
 			local C = 1/tan(pbw)
 			local D = 2*cos(pfreq);
@@ -2189,8 +2187,6 @@ function BPFStream:gtick()
 			b1 = C*D*a0
 			b2 = (1 - C)*a0
 		end
-
-		local sample = tick()
 
 		local y0 = sample + b1*y1 + b2*y2
 		local result = a0 * (y0 - y2)
@@ -2210,14 +2206,10 @@ end
 -- to the passband width
 BRFStream = DeriveClass(MuxableStream)
 
--- Trailing non-stream arguments
-BRFStream.sig_last_stream = 2
-
 function BRFStream:muxableCtor(stream, freq, quality)
 	self.stream = stream
 	self.freq_stream = freq
-	-- FIXME: Does this make sense to be a stream?
-	self.quality = quality
+	self.quality_stream = quality
 end
 
 function BRFStream:gtick()
@@ -2234,23 +2226,27 @@ function BRFStream:gtick()
 
 	local tick = self.stream:gtick()
 	local freq_tick = self.freq_stream:gtick()
-	local cur_freq = nil
+	local quality_tick = self.quality_stream:gtick()
+	local cur_freq, cur_quality
 
 	-- NOTE: Very similar to BPFStream.gtick()
 	return function()
 		local sample = tick()
 		local freq = freq_tick()
+		local quality = quality_tick()
 
-		if sample == nil or freq == nil then
+		if sample == nil or freq == nil or quality == nil then
 			-- don't filter if we run out of frequency samples
 			return sample
 		elseif freq ~= cur_freq then
 			-- calculate filter coefficients
 			-- avoid recalculation for constant frequencies
+			-- and quality factors
 			cur_freq = freq
+			cur_quality = quality
 
 			local pfreq = cur_freq * radians_per_sample
-			local pbw = 1 / self.quality*pfreq*0.5
+			local pbw = 1 / cur_quality*pfreq*0.5
 
 			local C = tan(pbw)
 			local D = 2*cos(pfreq);
@@ -2259,8 +2255,6 @@ function BRFStream:gtick()
 			b1 = -D*a0
 			b2 = (1 - C)*a0
 		end
-
-		local sample = tick()
 
 		local y0 = sample - b1*y1 - b2*y2
 		local result = a0 * (y0 + y2) + b1*y1
