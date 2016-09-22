@@ -568,6 +568,9 @@ function Stream:save(filename, format)
 	hnd:close()
 end
 
+function Stream:tonumber() return self:map(tonumber) end
+function Stream:tostring() return self:map(tostring) end
+
 function Stream:totable()
 	if self:len() == math.huge then
 		error("Cannot serialize infinite stream")
@@ -697,17 +700,13 @@ function Stream:__len()	return self:len() end
 
 -- NOTE: Will only convert the first channel
 function Stream:__tostring()
-	local t
+	local stream = self:tostring()
 
 	if self:len() > 1024 then
-		t = self:sub(1, 1024):totable()
-		table.insert(t, "...")
-	else
-		t = self:totable()
+		stream = stream:sub(1, 1024)..tostream{"..."}
 	end
 
-	for i = 1, #t do t[i] = tostring(t[i]) end
-
+	local t = stream:totable()
 	return "{"..table.concat(t, ", ").."}"
 end
 
