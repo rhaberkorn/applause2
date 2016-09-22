@@ -233,6 +233,17 @@ for _, fnc in pairs{"abs", "acos", "asin", "atan",
 	end
 end
 
+-- Some binary functions from the math package
+for _, name in pairs{"min", "max"} do
+	local fnc = math[name]
+
+	Stream[name] = function(self, v)
+		return type(v) == "number" and
+		       self:map(function(x) return fnc(x, v) end) or
+		       self:zip(fnc, v)
+	end
+end
+
 function Stream:bnot()
 	return self:map(bit.bnot)
 end
@@ -244,52 +255,17 @@ for _, name in pairs{"bor", "band", "bxor",
 	local fnc = bit[name]
 
 	Stream[name] = function(self, v)
-		return self:map(function(x) return fnc(x, v) end)
+		return type(v) == "number" and
+		       self:map(function(x) return fnc(x, v) end) or
+		       self:zip(fnc, v)
 	end
 end
-
--- Scalar operations
--- In contrast to stream operations (based on ZipStream),
--- these work only with scalars and do not
--- extend the stream length
-function Stream:add(n)
-	return self:map(function(x) return x+n end)
-end
-
-function Stream:minus(n)
-	return self:map(function(x) return x-n end)
-end
-
-function Stream:mul(n)
-	return self:map(function(x) return x*n end)
-end
-Stream.gain = Stream.mul
-Stream["\u{00D7}"] = Stream.mul -- APL Multiply/Signum
-
-function Stream:div(n)
-	return self:map(function(x) return x/n end)
-end
-Stream["\u{00F7}"] = Stream.div -- APL Divide
-
-function Stream:mod(n)
-	return self:map(function(x) return x%n end)
-end
-
-function Stream:pow(n)
-	return self:map(function(x) return x^n end)
-end
-Stream["\u{22C6}"] = Stream.pow -- APL Exponentiation
 
 function Stream:clip(min, max)
 	min = min or -1
 	max = max or 1
 
-	local math_min = math.min
-	local math_max = math.max
-
-	return self:map(function(x)
-		return math_min(math_max(x, min), max)
-	end)
+	return self:max(min):min(max)
 end
 
 -- Scale [-1,+1] signal to [lower,upper]
@@ -298,9 +274,13 @@ function Stream:scale(v1, v2)
 	local lower = v2 and v1 or 0
 	local upper = v2 or v1
 
-	return self:map(function(x)
-		return (x + 1)*(upper - lower)/2 + lower
-	end)
+	if type(lower) == "number" and type(upper) == "number" then
+		return self:map(function(x)
+			return (x + 1)*(upper - lower)/2 + lower
+		end)
+	else
+		return (self + 1)*((upper - lower)/2) + lower
+	end
 end
 
 -- same as Stream:scale() but for values between [0, 127]
@@ -309,9 +289,13 @@ function Stream:ccscale(v1, v2)
 	local lower = v2 and v1 or 0
 	local upper = v2 or v1
 
-	return self:map(function(x)
-		return (x/127)*(upper - lower) + lower
-	end)
+	if type(lower) == "number" and type(upper) == "number" then
+		return self:map(function(x)
+			return (x/127)*(upper - lower) + lower
+		end)
+	else
+		return self*((upper - lower)/127) + lower
+	end
 end
 
 function Stream:scan(fnc)
@@ -336,14 +320,22 @@ end
 
 function Stream:mix(other, wetness)
 	wetness = wetness or 0.5
-	return self:mul(1 - wetness) + other:mul(wetness)
+	return self*(1 - wetness) + other*wetness
 end
 
 function Stream:pan(location)
 	location = location or 0
 	local cached = self:cache()
-	return MuxStream:new(cached:mul(1-math.max(location, 0)),
-	                     cached:mul(1+math.min(location, 0)))
+
+	if type(location) == "number" then
+		return MuxStream:new(cached * (1-math.max(location, 0)),
+		                     cached * (1+math.min(location, 0)))
+	else
+		local location_cached = tostream(location):cache()
+
+		return MuxStream:new(cached * (1-location_cached:max(0)),
+		                     cached * (1+location_cached:min(0)))
+	end
 end
 
 function Stream:delay(length)
@@ -389,7 +381,7 @@ function Stream.SawOsc(freq, phase)
 
 	return ScanStream:new(freq, function(accu, f)
 		return ((accu or phase) + 2*f/samplerate) % 2
-	end):minus(1)
+	end) - 1
 end
 
 function Stream.SinOsc(freq, phase)
@@ -719,41 +711,86 @@ function Stream:__tostring()
 	return "{"..table.concat(t, ", ").."}"
 end
 
+-- NOTE: These operators work with scalars and streams.
+-- The semantics of e.g. adding Stream(x) is compatible
+-- with a map that adds x. Maps are preferred since
+-- they are (slightly).
 -- NOTE: Named addOp() and similar functions below
 -- are necessary instead of lambdas so consecutive
 -- operations can be collapsed by ZipStream (which
 -- tests for function equivalence)
-local function addOp(x1, x2) return x1+x2 end
-function Stream.__add(op1, op2)
-	return ZipStream:new(addOp, op1, op2)
+
+do
+	local function addOp(x1, x2) return x1+x2 end
+
+	function Stream.add(v1, v2)
+		return type(v2) == "number" and
+		       MapStream:new(v1, function(x) return x+v2 end) or
+		       ZipStream:new(addOp, v1, v2)
+	end
+	Stream.__add = Stream.add
 end
 
-local function subOp(x1, x2) return x1-x2 end
-function Stream.__sub(op1, op2)
-	return ZipStream:new(subOp, op1, op2)
+do
+	local function subOp(x1, x2) return x1-x2 end
+
+	function Stream.minus(v1, v2)
+		return type(v2) == "number" and
+		       MapStream:new(v1, function(x) return x-v2 end) or
+		       ZipStream:new(subOp, v1, v2)
+	end
+	Stream.__sub = Stream.minus
 end
 
-local function mulOp(x1, x2) return x1*x2 end
-function Stream.__mul(op1, op2)
-	return ZipStream:new(mulOp, op1, op2)
+do
+	local function mulOp(x1, x2) return x1*x2 end
+
+	function Stream.mul(v1, v2)
+		return type(v2) == "number" and
+		       MapStream:new(v1, function(x) return x*v2 end) or
+		       ZipStream:new(mulOp, v1, v2)
+	end
+	Stream.gain = Stream.mul
+	Stream["\u{00D7}"] = Stream.mul -- APL Multiply/Signum
+	Stream.__mul = Stream.mul
 end
 
-local function divOp(x1, x2) return x1/x2 end
-function Stream.__div(op1, op2)
-	return ZipStream:new(divOp, op1, op2)
+do
+	local function divOp(x1, x2) return x1/x2 end
+
+	function Stream.div(v1, v2)
+		return type(v2) == "number" and
+		       MapStream:new(v1, function(x) return x/v2 end) or
+		       ZipStream:new(divOp, v1, v2)
+	end
+	Stream["\u{00F7}"] = Stream.div -- APL Divide
+	Stream.__div = Stream.div
 end
 
-local function modOp(x1, x2) return x1%x2 end
-function Stream.__mod(op1, op2)
-	return ZipStream:new(modOp, op1, op2)
+do
+	local function modOp(x1, x2) return x1%x2 end
+
+	function Stream.mod(v1, v2)
+		return type(v2) == "number" and
+		       MapStream:new(v1, function(x) return x%v2 end) or
+		       ZipStream:new(modOp, v1, v2)
+	end
+	Stream.__mod = Stream.mod
 end
 
-local function powOp(x1, x2) return x1^x2 end
-function Stream.__pow(op1, op2)
-	return ZipStream:new(powOp, op1, op2)
+do
+	local function powOp(x1, x2) return x1^x2 end
+
+	function Stream.pow(v1, v2)
+		return type(v2) == "number" and
+		       MapStream:new(v1, function(x) return x^v2 end) or
+		       ZipStream:new(powOp, v1, v2)
+	end
+	Stream["\u{22C6}"] = Stream.pow -- APL Exponentiation
+	Stream.__pow = Stream.pow
 end
 
-function Stream:__unm()	return self:mul(-1) end
+function Stream:__unm() return self * -1 end
 
 function Stream.__concat(op1, op2)
 	return ConcatStream:new(op1, op2)
@@ -1069,14 +1106,19 @@ function ConcatStream:gtick()
 		ticks[k] = self.streams[k]:gtick()
 	end
 
-	return function()
-		while i <= #ticks do
-			local sample = ticks[i]()
+	-- NOTE: Binding each tick function to a variable
+	-- is faster since it allows the JIT compiler
+	-- to inline functions.
+	local tick = ticks[1]
 
+	return function()
+		while tick do
+			local sample = tick()
 			if sample then return sample end
 
 			-- try next stream
 			i = i + 1
+			tick = ticks[i]
 		end
 	end
 end
@@ -1323,10 +1365,11 @@ end
 
 function MapStream:gtick()
 	local tick = self.stream:gtick()
+	local fnc = self.fnc
 
 	return function()
 		local sample = tick()
-		return sample and self.fnc(sample)
+		return sample and fnc(sample)
 	end
 end
 
@@ -1346,13 +1389,14 @@ end
 
 function ScanStream:gtick()
 	local tick = self.stream:gtick()
+	local fnc = self.fnc
 	local last_sample = nil
 
 	return function()
 		local sample = tick()
 		if not sample then return end
 
-		last_sample = self.fnc(last_sample, sample)
+		last_sample = fnc(last_sample, sample)
 		return last_sample
 	end
 end
@@ -1373,6 +1417,7 @@ end
 
 function FoldStream:gtick()
 	local tick = self.stream:gtick()
+	local fnc = self.fnc
 
 	return function()
 		local l, r
@@ -1381,7 +1426,7 @@ function FoldStream:gtick()
 			r = tick()
 			if not r then break end
 
-			l = l and self.fnc(l, r) or r
+			l = l and fnc(l, r) or r
 		end
 
 		return l
@@ -1418,48 +1463,48 @@ function ZipStream:muxableCtor(fnc, ...)
 end
 
 function ZipStream:gtick()
-	local running = true
-	local ticks = {}
+	local fnc = self.fnc
 
-	for i = 1, #self.streams do
-		ticks[i] = self.streams[i]:gtick()
-	end
-
-	if #ticks == 2 then
+	if #self.streams == 2 then
 		-- 2 streams are common, so use an unrolled
 		-- version here
+		--
+		-- NOTE: Unrolling the ticks array here
+		-- almost halves the overhead when calculating
+		-- something like Stream(0)+Stream(1), making
+		-- it almost as fast as
+		-- Stream(0):map(function(x) return x+1 end)
+		local tick1 = self.streams[1]:gtick()
+		local tick2 = self.streams[2]:gtick()
+
 		return function()
-			if not running then return end
+			local sample1 = tick1()
+			if not sample1 then return end
 
-			local sample1, sample2 = ticks[1](), ticks[2]()
+			local sample2 = tick2()
+			if not sample2 then return sample1 end
 
-			if not sample1 then
-				running = sample2
-				return sample2
-			elseif not sample2 then
-				-- have sample1, keep running
-				return sample1
-			end
-
-			return self.fnc(sample1, sample2)
+			return fnc(sample1, sample2)
 		end
 	else
+		-- NOTE: Unfortunately, functions in the
+		-- ticks array cannot be inlined
+		local ticks = {}
+		for i = 1, #self.streams do
+			ticks[i] = self.streams[i]:gtick()
+		end
+
 		return function()
-			if not running then return end
+			local result = ticks[1]()
+			if not result then return end
 
-			local result = nil
-
-			for i = 1, #ticks do
+			for i = 2, #ticks do
 				local sample = ticks[i]()
 
 				if sample then
-					result = result and self.fnc(result, sample)
-					                or sample
+					result = fnc(result, sample)
 				end
 			end
-
-			-- if all streams have ended, `result` will be nil
-			running = result
 
 			return result
 		end
@@ -1467,13 +1512,7 @@ function ZipStream:gtick()
 end
 
 function ZipStream:len()
-	local max = 0
-
-	for _, stream in pairs(self.streams) do
-		max = math.max(max, stream:len())
-	end
-
-	return max
+	return self.streams[1]:len()
 end
 
 NoiseStream = DeriveClass(Stream)
@@ -1492,7 +1531,7 @@ function BrownNoise()
 	return NoiseStream():scan(function(brown, white)
 		brown = (brown or 0) + white
 		return (brown < -8 or brown > 8) and brown - white or brown
-	end):mul(0.0625)
+	end) * 0.0625
 end
 
 PinkNoiseStream = DeriveClass(Stream)
@@ -1851,7 +1890,7 @@ function iota(...) return IotaStream:new(...) end
 _G["\u{2373}"] = iota -- APL Iota
 
 function line(v1, t, v2)
-	return iota(t):mul((v2-v1)/t):add(v1)
+	return iota(t) * ((v2-v1)/t) + v1
 end
 
 -- Derived from RTcmix' "curve" table
