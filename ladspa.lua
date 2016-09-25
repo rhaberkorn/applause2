@@ -156,7 +156,7 @@ LADSPAStream = DeriveClass(Stream)
 -- from this file (otherwise, the first one is used).
 --
 -- `input_ports` are tables defining the mapping from
--- LADSPA port names to Streams for audio and control input ports.
+-- LADSPA port names to Streams or constants for audio and control input ports.
 -- This host does not make a difference between audio and control ports.
 -- A mapping from port Id to Streams (ie. an array of Streams corresponding
 -- with the ports) is also allowed.
@@ -164,6 +164,10 @@ LADSPAStream = DeriveClass(Stream)
 -- so port mappings can be specified as a list of arguments as well.
 -- Every plugin input port must either be mapped or have a default
 -- value.
+-- Constants are handled specially and are faster than streams.
+--
+-- Multi-channel output plugins are always muxed. But you may use
+-- LADSPAStream(...):demux(...) to discard uninteresting output channels.
 --
 -- FIXME: We could simplify things by just assuming a flat array of
 -- input ports
@@ -215,13 +219,17 @@ function LADSPAStream:ctor(file, ...)
 	end
 
 	-- Array of all input port numbers (origin 0)
+	-- with a corresponding Stream
 	self.input_ports = {}
 	-- Array of streams connected to the input ports.
 	-- Each element corresponds with an port number in self.input_ports
-	-- FIXME: Scalars might be preserved here.
-	-- They only have to be set once and could be stored in their own
-	-- array.
 	self.input_streams = {}
+
+	-- Array of input port numbers with constant values.
+	self.const_input_ports = {}
+	-- Array of constants connected to the `const_input_ports`.
+	local const_input_data = {}
+
 	-- List of output port numbers (origin 0)
 	self.output_ports = {}
 
@@ -232,31 +240,41 @@ function LADSPAStream:ctor(file, ...)
 			local port_name = ffi.string(self.descriptor.PortNames[i])
 
 			-- We must connect all ports, so if the user does not provide
-			-- an input stream, we try to provide a default.
+			-- an input stream or constant, we try to provide a default.
 			-- There may be no default, in which case we throw an error.
-			local stream = input_ports[i+1] or input_ports[port_name] or
-			               getPortDefault(self.descriptor.PortRangeHints[i]) or
-			               error('Input stream for port "'..port_name..'" in plugin '..
-			                     '"'..file..'" required')
-			stream = tostream(stream)
-			-- Every LADSPA port is single channel, so for the time being
-			-- we allow only single channel input Streams
-			assert(stream.channels == 1)
-			-- Since LADSPA plugins can always produce data infinitely,
-			-- the LADSPAStream is infinite as well.
-			-- To avoid problems with input streams ending early,
-			-- we enforce them to be infinite as well.
-			-- FIXME: Perhaps LADSPAStream should be bounded to
-			-- the shortest input stream.
-			assert(stream:len() == math.huge)
+			local data = input_ports[i+1] or input_ports[port_name] or
+			             getPortDefault(self.descriptor.PortRangeHints[i]) or
+			             error('Input stream/constant for port "'..port_name..'" in plugin '..
+			                   '"'..file..'" required')
 
-			table.insert(self.input_ports, i)
-			table.insert(self.input_streams, stream)
+			if type(data) == "table" and data.is_a_stream then
+				-- Every LADSPA port is single channel, so for the time being
+				-- we allow only single channel input Streams
+				assert(data.channels == 1)
+				-- Since LADSPA plugins can always produce data infinitely,
+				-- the LADSPAStream is infinite as well.
+				-- To avoid problems with input streams ending early,
+				-- we enforce them to be infinite as well.
+				-- FIXME: Perhaps LADSPAStream should be bounded to
+				-- the shortest input stream.
+				assert(data:len() == math.huge)
+
+				table.insert(self.input_ports, i)
+				table.insert(self.input_streams, data)
+			else
+				table.insert(self.const_input_ports, i)
+				table.insert(const_input_data, data)
+			end
 		elseif bit.band(port_descriptor, ffi.C.LADSPA_PORT_OUTPUT) ~= 0 then
 			table.insert(self.output_ports, i)
 		end
 	end
 	assert(#self.output_ports > 0)
+
+	-- Constant input data can be converted to LADSPA_Data array and shared
+	-- among all instances of this Stream.
+	self.const_input_buffers = ffi.new("LADSPA_Data[?]", #const_input_data,
+	                                   unpack(const_input_data))
 
 	-- Just like in SndfileStreams, plugins with multiple output channels
 	-- must be wrapped in a MuxStream
@@ -277,7 +295,7 @@ function LADSPAStream:getName()
 end
 
 function LADSPAStream:gtick()
-	-- Get the tick for every input port stream
+	-- Get the tick for every (non-constant) input port stream
 	local ticks = table.new(#self.input_streams, 0)
 	for i = 1, #self.input_streams do
 		ticks[i] = self.input_streams[i]:gtick()
@@ -316,10 +334,16 @@ function LADSPAStream:gtick()
 		input_buffers, output_buffers = nil, nil
 	end)
 
-	-- Connect input ports
+	-- Connect all non-constant input ports
 	for i = 1, #self.input_ports do
 		self.descriptor.connect_port(handle, self.input_ports[i],
 		                             input_buffers + i - 1)
+	end
+
+	-- Connect all constant input ports
+	for i = 1, #self.const_input_ports do
+		self.descriptor.connect_port(handle, self.const_input_ports[i],
+		                             self.const_input_buffers + i - 1)
 	end
 
 	-- Connect output ports
@@ -339,7 +363,9 @@ function LADSPAStream:gtick()
 	end
 
 	return function()
-		-- Fill each input buffer
+		-- Fill each input buffer.
+		-- NOTE: Constants have their own buffers and are initialized
+		-- only once in ctor().
 		-- NOTE: Currently every input stream is guaranteed to be
 		-- infinite.
 		for i = 1, #ticks do
