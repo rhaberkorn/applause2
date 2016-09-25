@@ -1,0 +1,371 @@
+local bit = require "bit"
+local ffi = require "ffi"
+
+-- Extract of ladspa.h (Version 1.1).
+-- Comments have been removed for simplicity and defines
+-- have been converted into enums.
+cdef_safe[[
+typedef float LADSPA_Data;
+
+typedef int LADSPA_Properties;
+
+typedef int LADSPA_PortDescriptor;
+
+enum {
+	LADSPA_PORT_INPUT		= 0x1,
+	LADSPA_PORT_OUTPUT		= 0x2,
+	LADSPA_PORT_CONTROL		= 0x4,
+	LADSPA_PORT_AUDIO		= 0x8
+};
+
+typedef int LADSPA_PortRangeHintDescriptor;
+
+enum {
+	LADSPA_HINT_BOUNDED_BELOW	= 0x1,
+	LADSPA_HINT_BOUNDED_ABOVE	= 0x2,
+	LADSPA_HINT_TOGGLED		= 0x4,
+	LADSPA_HINT_SAMPLE_RATE		= 0x8,
+	LADSPA_HINT_LOGARITHMIC		= 0x10,
+	LADSPA_HINT_INTEGER		= 0x20,
+	LADSPA_HINT_DEFAULT_MASK	= 0x3C0,
+	LADSPA_HINT_DEFAULT_NONE	= 0x0,
+	LADSPA_HINT_DEFAULT_MINIMUM	= 0x40,
+	LADSPA_HINT_DEFAULT_LOW		= 0x80,
+	LADSPA_HINT_DEFAULT_MIDDLE	= 0xC0,
+	LADSPA_HINT_DEFAULT_HIGH	= 0x100,
+	LADSPA_HINT_DEFAULT_MAXIMUM	= 0x140,
+	LADSPA_HINT_DEFAULT_0		= 0x200,
+	LADSPA_HINT_DEFAULT_1		= 0x240,
+	LADSPA_HINT_DEFAULT_100		= 0x280,
+	LADSPA_HINT_DEFAULT_440		= 0x2C0
+};
+
+typedef struct _LADSPA_PortRangeHint {
+  LADSPA_PortRangeHintDescriptor HintDescriptor;
+  LADSPA_Data LowerBound;
+  LADSPA_Data UpperBound;
+} LADSPA_PortRangeHint;
+
+typedef void * LADSPA_Handle;
+
+typedef struct _LADSPA_Descriptor { 
+  unsigned long UniqueID;
+
+  const char * Label;
+
+  LADSPA_Properties Properties;
+
+  const char * Name;
+  const char * Maker;
+  const char * Copyright;
+
+  unsigned long PortCount;
+  const LADSPA_PortDescriptor * PortDescriptors;
+  const char * const * PortNames;
+  const LADSPA_PortRangeHint * PortRangeHints;
+
+  void * ImplementationData;
+
+  LADSPA_Handle (*instantiate)(const struct _LADSPA_Descriptor * Descriptor,
+                               unsigned long                     SampleRate);
+
+   void (*connect_port)(LADSPA_Handle Instance,
+                        unsigned long Port,
+                        LADSPA_Data * DataLocation);
+
+  void (*activate)(LADSPA_Handle Instance);
+
+  void (*run)(LADSPA_Handle Instance,
+              unsigned long SampleCount);
+  void (*run_adding)(LADSPA_Handle Instance,
+                     unsigned long SampleCount);
+  void (*set_run_adding_gain)(LADSPA_Handle Instance,
+                              LADSPA_Data   Gain);
+
+  void (*deactivate)(LADSPA_Handle Instance);
+  void (*cleanup)(LADSPA_Handle Instance);
+} LADSPA_Descriptor;
+
+const LADSPA_Descriptor *ladspa_descriptor(unsigned long Index);
+]]
+
+-- NOTE: Not a LADSPAStream method, so we can call it from ctor()
+local function getPortDefault(hint)
+	local default = bit.band(hint.HintDescriptor,
+	                         ffi.C.LADSPA_HINT_DEFAULT_MASK)
+
+	-- This map contains only the simple defaults since we want
+	-- to avoid more complex calculations if possible
+	local default_to_value = {
+		[ffi.C.LADSPA_HINT_DEFAULT_MINIMUM]	= hint.LowerBound,
+		[ffi.C.LADSPA_HINT_DEFAULT_MAXIMUM]	= hint.UpperBound,
+		[ffi.C.LADSPA_HINT_DEFAULT_0]		= 0,
+		[ffi.C.LADSPA_HINT_DEFAULT_1]		= 1,
+		[ffi.C.LADSPA_HINT_DEFAULT_100]		= 100,
+		[ffi.C.LADSPA_HINT_DEFAULT_440]		= 440
+	}
+
+	local value = default_to_value[default]
+	if value then return value end
+
+	-- Could still be a value dependent on LowerBound/UpperBound...
+
+	local logarithmic = bit.band(hint.HintDescriptor,
+	                             ffi.C.LADSPA_HINT_LOGARITHMIC) ~= 0
+
+	if default == ffi.C.LADSPA_HINT_DEFAULT_LOW then
+		return logarithmic and
+		       math.exp(math.log(hint.LowerBound)*0.75 + math.log(hint.UpperBound)*0.25) or
+		       hint.LowerBound*0.75 + hint.UpperBound*0.25
+	elseif default == ffi.C.LADSPA_HINT_DEFAULT_MIDDLE then
+		return logarithmic and
+		       math.exp(math.log(hint.LowerBound)*0.5 + math.log(hint.UpperBound)*0.5) or
+		       hint.LowerBound*0.5 + hint.UpperBound*0.5
+	elseif default == ffi.C.LADSPA_HINT_DEFAULT_HIGH then
+		return logarithmic and
+		       math.exp(math.log(hint.LowerBound)*0.25 + math.log(hint.UpperBound)*0.75) or
+		       hint.LowerBound*0.25 + hint.UpperBound*0.75
+	end
+
+	-- We can still return nil, if there is no default value
+	-- (or an unknown default)
+end
+
+local function mangleInputPorts(input_ports, ...)
+	-- NOTE: Theoretically, an array can be converted to a
+	-- stream like any other type and used to provide the
+	-- first plugin input port.
+	-- We prevent this (at least for the first stream) to allow
+	-- passing in all input ports in a single table argument.
+	if type(input_ports) ~= "table" or
+	   input_ports.is_a_stream then
+		input_ports = {input_ports}
+	end
+	for _, stream in ipairs{...} do
+		table.insert(input_ports, stream)
+	end
+
+	return input_ports
+end
+
+LADSPAStream = DeriveClass(Stream)
+
+-- `file` is either the full path to a plugin library or a basename
+-- looked up in $LADSPA_PATH.
+-- It may be followed by an optional ":Label" to select a plugin by type
+-- from this file (otherwise, the first one is used).
+--
+-- `input_ports` are tables defining the mapping from
+-- LADSPA port names to Streams for audio and control input ports.
+-- This host does not make a difference between audio and control ports.
+-- A mapping from port Id to Streams (ie. an array of Streams corresponding
+-- with the ports) is also allowed.
+-- All additional arguments are added to this table as an array,
+-- so port mappings can be specified as a list of arguments as well.
+-- Every plugin input port must either be mapped or have a default
+-- value.
+--
+-- FIXME: We could simplify things by just assuming a flat array of
+-- input ports
+function LADSPAStream:ctor(file, ...)
+	local plugin_file, label = file:match("^([^:]+):(.+)")
+	plugin_file = plugin_file or file
+
+	local input_ports = mangleInputPorts(...)
+
+	-- NOTE: The FFI clib is saved in the object
+	-- to keep it alive even though we call only function pointers
+	-- after the constructor.
+	if plugin_file:sub(1,1) == "/" then
+		-- Absolute path
+		self.lib = ffi.load(plugin_file)
+	else
+		-- Search in $LADSPA_PATH
+		local LADSPA_PATH = os.getenv("LADSPA_PATH") or
+		                    "/usr/lib/ladspa"
+
+		for dir in LADSPA_PATH:gmatch("[^:]+") do
+			if dir:sub(-1) ~= "/" then dir = dir.."/" end
+
+			-- Simply try to load the plugin in this
+			-- directory. We have no standard way of
+			-- checking for file existence anyway.
+			local state, lib = pcall(ffi.load, dir..plugin_file..".so")
+			if state then
+				self.lib = lib
+				break
+			end
+		end
+
+		if not self.lib then
+			error('LADSPA plugin library "'..plugin_file..'" not found')
+		end
+	end
+
+	-- Look up plugin by label or just take the first one
+	do
+		local i = 0
+		repeat
+			self.descriptor = self.lib.ladspa_descriptor(i)
+			if self.descriptor == nil then
+				error('No matching plugin found for "'..file..'"')
+			end
+			i = i + 1
+		until not label or ffi.string(self.descriptor.Label) == label
+	end
+
+	-- Array of all input port numbers (origin 0)
+	self.input_ports = {}
+	-- Array of streams connected to the input ports.
+	-- Each element corresponds with an port number in self.input_ports
+	-- FIXME: Scalars might be preserved here.
+	-- They only have to be set once and could be stored in their own
+	-- array.
+	self.input_streams = {}
+	-- List of output port numbers (origin 0)
+	self.output_ports = {}
+
+	for i = 0, tonumber(self.descriptor.PortCount)-1 do
+		local port_descriptor = self.descriptor.PortDescriptors[i]
+
+		if bit.band(port_descriptor, ffi.C.LADSPA_PORT_INPUT) ~= 0 then
+			local port_name = ffi.string(self.descriptor.PortNames[i])
+
+			-- We must connect all ports, so if the user does not provide
+			-- an input stream, we try to provide a default.
+			-- There may be no default, in which case we throw an error.
+			local stream = input_ports[i+1] or input_ports[port_name] or
+			               getPortDefault(self.descriptor.PortRangeHints[i]) or
+			               error('Input stream for port "'..port_name..'" in plugin '..
+			                     '"'..file..'" required')
+			stream = tostream(stream)
+			-- Every LADSPA port is single channel, so for the time being
+			-- we allow only single channel input Streams
+			assert(stream.channels == 1)
+			-- Since LADSPA plugins can always produce data infinitely,
+			-- the LADSPAStream is infinite as well.
+			-- To avoid problems with input streams ending early,
+			-- we enforce them to be infinite as well.
+			-- FIXME: Perhaps LADSPAStream should be bounded to
+			-- the shortest input stream.
+			assert(stream:len() == math.huge)
+
+			table.insert(self.input_ports, i)
+			table.insert(self.input_streams, stream)
+		elseif bit.band(port_descriptor, ffi.C.LADSPA_PORT_OUTPUT) ~= 0 then
+			table.insert(self.output_ports, i)
+		end
+	end
+	assert(#self.output_ports > 0)
+
+	-- Just like in SndfileStreams, plugins with multiple output channels
+	-- must be wrapped in a MuxStream
+	if #self.output_ports > 1 then
+		local cached = self:cache()
+		local streams = {}
+		for i = 0, #self.output_ports-1 do
+			streams[i+1] = cached:map(function(frame)
+				return tonumber(frame[i])
+			end)
+		end
+		return MuxStream:new(unpack(streams))
+	end
+end
+
+function LADSPAStream:getName()
+	return ffi.string(self.descriptor.Name)
+end
+
+function LADSPAStream:gtick()
+	-- Get the tick for every input port stream
+	local ticks = table.new(#self.input_streams, 0)
+	for i = 1, #self.input_streams do
+		ticks[i] = self.input_streams[i]:gtick()
+	end
+
+	-- Every input and output port has its own
+	-- one-sample buffer, so we simply allocate a consecutive
+	-- array of LADSPA_Data.
+	local input_buffers = ffi.new("LADSPA_Data[?]", #self.input_ports)
+	-- For output buffers, this also has the advantage that they can
+	-- be returned like an output frame.
+	local output_buffers = ffi.new("LADSPA_Data[?]", #self.output_ports)
+	-- If true, we output frames (multi-channel output)
+	local output_frames = #self.output_ports > 1
+
+	-- The deactivate() handler, if it exists and must be called
+	-- before cleanup.
+	local deactivate
+
+	-- Instantiate plugin. This may fail.
+	-- It is done in gtick(), so the stream can be reused multiple
+	-- times.
+	local handle = self.descriptor:instantiate(samplerate)
+	if handle == nil then
+		error('Instantiating LADSPA plugin "'..self:getName()..'" failed')
+	end
+	handle = ffi.gc(handle, function(handle)
+		-- Make sure that deactivate() is called, but only
+		-- after activate(). ladspa.h is unclear whether
+		-- deactivate() can be called without activate().
+		if deactivate then deactivate(handle) end
+		self.descriptor.cleanup(handle)
+
+		-- This makes sure that the buffers are only garbage
+		-- collected AFTER cleanup().
+		input_buffers, output_buffers = nil, nil
+	end)
+
+	-- Connect input ports
+	for i = 1, #self.input_ports do
+		self.descriptor.connect_port(handle, self.input_ports[i],
+		                             input_buffers + i - 1)
+	end
+
+	-- Connect output ports
+	for i = 1, #self.output_ports do
+		self.descriptor.connect_port(handle, self.output_ports[i],
+		                             output_buffers + i - 1)
+	end
+
+	local run = self.descriptor.run
+
+	-- Activate plugin.
+	-- It should be safe to do here instead of in the tick function.
+	if self.descriptor.activate ~= nil then
+		deactivate = self.descriptor.deactivate ~= nil and
+		             self.descriptor.deactivate
+		self.descriptor.activate(handle)
+	end
+
+	return function()
+		-- Fill each input buffer
+		-- NOTE: Currently every input stream is guaranteed to be
+		-- infinite.
+		for i = 1, #ticks do
+			input_buffers[i-1] = ticks[i]()
+		end
+
+		-- Run for 1 sample
+		run(handle, 1)
+
+		-- For multi-channel output plugins, we return frames.
+		-- This is an intermediate output that the user never sees
+		-- since it is wrapped in a MuxStream (see ctor()).
+		return output_frames and output_buffers or
+		       tonumber(output_buffers[0])
+	end
+end
+
+-- LADSPA plugins always seem to be infinite,
+-- and we force all input streams to be infinite as well
+function LADSPAStream:len() return math.huge end
+
+-- For the Stream method, we just assume that the
+-- subject stream is passed in as the first input port
+function Stream:LADSPA(file, ...)
+	local input_ports = mangleInputPorts(...)
+	table.insert(input_ports, 1, self)
+
+	return LADSPAStream:new(file, input_ports)
+end

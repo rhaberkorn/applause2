@@ -10,7 +10,9 @@ require "table.new"
 require "table.clear"
 
 -- Useful in order to make the module reloadable
-local function cdef_safe(def)
+-- NOTE: This is global, so it can be used in reloadable
+-- submodules
+function cdef_safe(def)
 	local state, msg = pcall(ffi.cdef, def)
 	if not state then
 		io.stderr:write("WARNING: ", msg, "\n")
@@ -2298,3 +2300,9 @@ function Client:kill()
 end
 
 Client.__gc = Client.kill
+
+--
+-- Additional modules are loaded with dofile(),
+-- so they react to reload()
+--
+dofile "ladspa.lua"
