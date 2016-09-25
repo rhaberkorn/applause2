@@ -165,6 +165,10 @@ LADSPAStream = DeriveClass(Stream)
 -- Every plugin input port must either be mapped or have a default
 -- value.
 -- Constants are handled specially and are faster than streams.
+-- Multi-channel input streams do not result in muxing of the LADSPAStream,
+-- so every input stream must be mono.
+-- However, to ease binding the individual channels of a multi-channel
+-- stream, they are automatically expanded to consecutive input streams.
 --
 -- Multi-channel output plugins are always muxed. But you may use
 -- LADSPAStream(...):demux(...) to discard uninteresting output channels.
@@ -176,6 +180,26 @@ function LADSPAStream:ctor(file, ...)
 	plugin_file = plugin_file or file
 
 	local input_ports = mangleInputPorts(...)
+
+	-- Expand all multi-channel input streams in arrays.
+	-- This is handy, since often stereo inputs are defined
+	-- as consecutive input ports.
+	do
+		local i = 1
+		while i <= table.maxn(input_ports) do
+			local port = input_ports[i]
+
+			if type(port) == "table" and port.is_a_stream and
+			   port.channels > 1 then
+				table.remove(input_ports, i)
+				for c = port.channels, 1, -1 do
+					table.insert(input_ports, i, port:demux(c))
+				end
+			end
+
+			i = i + 1
+		end
+	end
 
 	-- NOTE: The FFI clib is saved in the object
 	-- to keep it alive even though we call only function pointers
