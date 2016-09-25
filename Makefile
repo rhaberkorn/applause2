@@ -1,6 +1,6 @@
 CC = gcc
 
-CFLAGS = -std=c99 -Wall -O2
+CFLAGS = -std=c99 -Wall -O2 -g
 
 LUA_CFLAGS = $(shell pkg-config --cflags luajit)
 LUA_LDFLAGS = $(shell pkg-config --libs luajit)
