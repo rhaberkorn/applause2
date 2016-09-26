@@ -1,10 +1,14 @@
 local bit = require "bit"
 local ffi = require "ffi"
 
--- Extract of ladspa.h (Version 1.1).
+-- ladspa.h/dssi.h extracts.
 -- Comments have been removed for simplicity and defines
 -- have been converted into enums.
 cdef_safe[[
+/*
+ * From ladspa.h (Version 1.1)
+ */
+
 typedef float LADSPA_Data;
 
 typedef int LADSPA_Properties;
@@ -87,7 +91,70 @@ typedef struct _LADSPA_Descriptor {
 } LADSPA_Descriptor;
 
 const LADSPA_Descriptor *ladspa_descriptor(unsigned long Index);
+
+/*
+ * From dssi.h (Version 1.0)
+ */
+
+/*
+ * Dummy type for snd_seq_event_t.
+ * Originally defined in alsa/seq_event.h.
+ * We don't need it since we do not support delivery of MIDI events.
+ */
+typedef void snd_seq_event_t;
+
+typedef struct _DSSI_Program_Descriptor {
+    unsigned long Bank;
+    unsigned long Program;
+    const char * Name;
+} DSSI_Program_Descriptor;
+
+typedef struct _DSSI_Descriptor {
+    int DSSI_API_Version;
+
+    const LADSPA_Descriptor *LADSPA_Plugin;
+
+    char *(*configure)(LADSPA_Handle Instance,
+		       const char *Key,
+		       const char *Value);
+
+    const DSSI_Program_Descriptor *(*get_program)(LADSPA_Handle Instance,
+						  unsigned long Index);
+    void (*select_program)(LADSPA_Handle Instance,
+			   unsigned long Bank,
+			   unsigned long Program);
+
+    int (*get_midi_controller_for_port)(LADSPA_Handle Instance,
+					unsigned long Port);
+
+    void (*run_synth)(LADSPA_Handle    Instance,
+		      unsigned long    SampleCount,
+		      snd_seq_event_t *Events,
+		      unsigned long    EventCount);
+    void (*run_synth_adding)(LADSPA_Handle    Instance,
+			     unsigned long    SampleCount,
+			     snd_seq_event_t *Events,
+			     unsigned long    EventCount);
+    void (*run_multiple_synths)(unsigned long     InstanceCount,
+                                LADSPA_Handle    *Instances,
+                                unsigned long     SampleCount,
+                                snd_seq_event_t **Events,
+                                unsigned long    *EventCounts);
+    void (*run_multiple_synths_adding)(unsigned long     InstanceCount,
+                                       LADSPA_Handle    *Instances,
+                                       unsigned long     SampleCount,
+                                       snd_seq_event_t **Events,
+                                       unsigned long    *EventCounts);
+} DSSI_Descriptor;
+
+const DSSI_Descriptor *dssi_descriptor(unsigned long Index);
 ]]
+
+-- Check for symbol existence in C library table.
+-- There does not seem to be a more elegant way to do this.
+local function checkClibSymbol(lib, symbol)
+	return pcall(getmetatable(lib).__index, lib, symbol) == true
+end
 
 -- NOTE: Not a LADSPAStream method, so we can call it from ctor()
 local function getPortDefault(hint)
@@ -151,7 +218,7 @@ end
 LADSPAStream = DeriveClass(Stream)
 
 -- `file` is either the full path to a plugin library or a basename
--- looked up in $LADSPA_PATH.
+-- looked up in $DSSI_PATH and $LADSPA_PATH.
 -- It may be followed by an optional ":Label" to select a plugin by type
 -- from this file (otherwise, the first one is used).
 --
@@ -172,6 +239,16 @@ LADSPAStream = DeriveClass(Stream)
 --
 -- Multi-channel output plugins are always muxed. But you may use
 -- LADSPAStream(...):demux(...) to discard uninteresting output channels.
+--
+-- There is some limited support for DSSI plugins.
+-- Currently, DSSI plugins are simply handled like wrappers around
+-- LADSPA plugins, which should work for DSSI-based effects that
+-- do not expose a LADSPA entry point.
+-- However to trigger a soft-synth, some kind of MIDI event delivery
+-- appears to be necessary.
+-- FIXME: This may be resolved by adding support for a special
+-- MIDI event input stream that, e.g. raw MIDI commands, which are
+-- parsed into snd_seq_event_t's.
 --
 -- FIXME: We could simplify things by just assuming a flat array of
 -- input ports
@@ -208,18 +285,25 @@ function LADSPAStream:ctor(file, ...)
 		-- Absolute path
 		self.lib = ffi.load(plugin_file)
 	else
-		-- Search in $LADSPA_PATH
+		-- Search in $DSSI_PATH:$LADSPA_PATH
+		local DSSI_PATH = os.getenv("DSSI_PATH") or
+		                  "/usr/local/lib/dssi:/usr/lib/dssi"
 		local LADSPA_PATH = os.getenv("LADSPA_PATH") or
-		                    "/usr/lib/ladspa"
+		                    "/usr/local/lib/ladspa:/usr/lib/ladspa"
 
-		for dir in LADSPA_PATH:gmatch("[^:]+") do
+		for dir in string.gmatch(DSSI_PATH..":"..LADSPA_PATH, "[^:]+") do
 			if dir:sub(-1) ~= "/" then dir = dir.."/" end
 
-			-- Simply try to load the plugin in this
+			-- Simply try to load the plugin library in this
 			-- directory. We have no standard way of
 			-- checking for file existence anyway.
 			local state, lib = pcall(ffi.load, dir..plugin_file..".so")
-			if state then
+
+			-- If it could be loaded, still make sure it is a DSSI/LADSPA
+			-- library
+			if state and
+			   (checkClibSymbol(lib, "dssi_descriptor") or
+			    checkClibSymbol(lib, "ladspa_descriptor")) then
 				self.lib = lib
 				break
 			end
@@ -234,10 +318,21 @@ function LADSPAStream:ctor(file, ...)
 	do
 		local i = 0
 		repeat
-			self.descriptor = self.lib.ladspa_descriptor(i)
+			-- Look for a DSSI entry point
+			if checkClibSymbol(self.lib, "dssi_descriptor") then
+				local dssi_descriptor = self.lib.dssi_descriptor(i)
+				if dssi_descriptor ~= nil then
+					self.descriptor = dssi_descriptor.LADSPA_Plugin
+				end
+			else
+				-- Otherwise, we are guaranteed to have a LADSPA entry point
+				self.descriptor = self.lib.ladspa_descriptor(i)
+			end
+
 			if self.descriptor == nil then
 				error('No matching plugin found for "'..file..'"')
 			end
+
 			i = i + 1
 		until not label or ffi.string(self.descriptor.Label) == label
 	end
