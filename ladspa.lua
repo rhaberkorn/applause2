@@ -257,16 +257,19 @@ function LADSPAStream:ctor(file, ...)
 	-- List of output port numbers (origin 0)
 	self.output_ports = {}
 
+	local input_port_count = 0
 	for i = 0, tonumber(self.descriptor.PortCount)-1 do
 		local port_descriptor = self.descriptor.PortDescriptors[i]
 
 		if bit.band(port_descriptor, ffi.C.LADSPA_PORT_INPUT) ~= 0 then
+			input_port_count = input_port_count + 1
+
 			local port_name = ffi.string(self.descriptor.PortNames[i])
 
 			-- We must connect all ports, so if the user does not provide
 			-- an input stream or constant, we try to provide a default.
 			-- There may be no default, in which case we throw an error.
-			local data = input_ports[i+1] or input_ports[port_name] or
+			local data = input_ports[input_port_count] or input_ports[port_name] or
 			             getPortDefault(self.descriptor.PortRangeHints[i]) or
 			             error('Input stream/constant for port "'..port_name..'" in plugin '..
 			                   '"'..file..'" required')
