@@ -733,12 +733,21 @@ do
 end
 
 do
-	local function subOp(x1, x2) return x1-x2 end
+	-- FIXME: Minus is not associative, so we use an unique
+	-- function for every ZipStream to prevent them being
+	-- collapsed. E.g. s1 - (s2 - s3) must not result in a single
+	-- ZipStream. Perhaps there should be a special stream for
+	-- associative operations, or collapsing should happen in Stream.minus().
+	-- It is also possible that the collapsing is slower than having
+	-- ZipStreams with only two operands since the resulting stream
+	-- tick arrays cannot be inlined well.
+	--
+	--local function subOp(x1, x2) return x1-x2 end
 
 	function Stream.minus(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x-v2 end) or
-		       ZipStream:new(subOp, v1, v2)
+		       ZipStream:new(function(x1, x2) return x1-x2 end, v1, v2)
 	end
 	Stream.__sub = Stream.minus
 end
@@ -757,35 +766,38 @@ do
 end
 
 do
-	local function divOp(x1, x2) return x1/x2 end
+	-- FIXME: See above minus()
+	--local function divOp(x1, x2) return x1/x2 end
 
 	function Stream.div(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x/v2 end) or
-		       ZipStream:new(divOp, v1, v2)
+		       ZipStream:new(function(x1, x2) return x1/x2 end, v1, v2)
 	end
 	Stream["\u{00F7}"] = Stream.div -- APL Divide
 	Stream.__div = Stream.div
 end
 
 do
-	local function modOp(x1, x2) return x1%x2 end
+	-- FIXME: See above minus()
+	--local function modOp(x1, x2) return x1%x2 end
 
 	function Stream.mod(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x%v2 end) or
-		       ZipStream:new(modOp, v1, v2)
+		       ZipStream:new(function(x1, x2) return x1%x2 end, v1, v2)
 	end
 	Stream.__mod = Stream.mod
 end
 
 do
-	local function powOp(x1, x2) return x1^x2 end
+	-- FIXME: See above minus()
+	--local function powOp(x1, x2) return x1^x2 end
 
 	function Stream.pow(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x^v2 end) or
-		       ZipStream:new(powOp, v1, v2)
+		       ZipStream:new(function(x1, x2) return x1^x2 end, v1, v2)
 	end
 	Stream["\u{22C6}"] = Stream.pow -- APL Exponentiation
 	Stream.__pow = Stream.pow
@@ -1441,6 +1453,13 @@ end
 -- ZipStream combines any number of streams into a single
 -- stream using a function. This is the basis of the "+"
 -- and "*" operations.
+--
+-- NOTE (FIXME?): This "inlines" ZipStream arguments with
+-- the same function as an optimization. This ONLY WORKS
+-- for associative operations and more than 3 operands are
+-- probably slower than two ZipStreams except for very large
+-- numbers of ZipStreams (should be benchmarked).
+-- In this case, we might just remove that optimization.
 ZipStream = DeriveClass(MuxableStream)
 
 -- We have a leading non-stream argument
