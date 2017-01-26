@@ -66,33 +66,14 @@ static sig_atomic_t		interrupted = 0;
 
 static sig_atomic_t		playback = 0;
 
-static jack_port_t		*midi_port;
+typedef struct applause_midi_port {
+	jack_port_t		*jack_port;
+	jack_ringbuffer_t	*buffer;
+} applause_midi_port;
 
-/**
- * State of all the MIDI notes as updated by
- * NOTE ON/OFF commands.
- * The values are the NOTE ON velocities.
- * Access must be syncronized with `midi_mutex`.
- */
-static uint8_t			midi_notes[16][128];
-/** The MIDI note triggered last on a channel */
-static int			midi_notes_last[16];
+static applause_midi_port midi_port;
 
-/**
- * State of all the MIDI controls as updated by
- * CC commands.
- * Access must be synchronized with `midi_mutex`.
- * Perhaps this should use atomic operations instead
- * (wasting a few kilobytes).
- */
-static uint8_t			midi_controls[16][128];
-
-/**
- * Mutex for synchronizing access to `midi_controls`.
- * This MUST have the PTHREAD_PRIO_INHERIT protocol
- * since it will be locked from a realtime thread.
- */
-static pthread_mutex_t		midi_mutex;
+typedef uint32_t applause_midi_sample;
 
 static int
 svsem_init(size_t value)
@@ -212,45 +193,29 @@ jack_process(jack_nframes_t nframes, void *arg)
 
 	/*
 	 * MIDI processing.
-	 * NOTE: This uses a priority inheriting mutex to
-	 * remain realtime capable.
+	 * FIXME: We could try to preserve the MIDI event timing by filling
+	 * out the stream with 0 samples.
 	 */
-	midi_in = jack_port_get_buffer(midi_port, nframes);
+	midi_in = jack_port_get_buffer(midi_port.jack_port, nframes);
 	midi_events = jack_midi_get_event_count(midi_in);
 
 	for (int i = 0; i < midi_events; i++) {
 		jack_midi_event_t event;
-		int channel;
+		applause_midi_sample sample = 0;
 
 		jack_midi_event_get(&event, midi_in, i);
-		channel = event.buffer[0] & 0x0F;
 
-		switch (event.buffer[0] & 0xF0) {
-		case 0x80: /* NOTE OFF */
-			pthread_mutex_lock(&midi_mutex);
-			/* NOTE: The NOTE OFF velocity is currently ignored */
-			midi_notes[channel]
-			          [event.buffer[1]] = 0;
-			midi_notes_last[channel] = event.buffer[1];
-			pthread_mutex_unlock(&midi_mutex);
-			break;
+		/*
+		 * We don't know if event.buffer is large enough
+		 * to be dereferenced as an applause_midi_sample pointer, so
+		 * we manually mangle it into an integer based on
+		 * buffer.size.
+		 */
+		for (int i = 0; i < event.size; i++)
+			sample |= event.buffer[i] << (i*8);
 
-		case 0x90: /* NOTE ON */
-			pthread_mutex_lock(&midi_mutex);
-			/* NOTE: Velocity of 0 has the same effect as NOTE OFF */
-			midi_notes[channel]
-			          [event.buffer[1]] = event.buffer[2];
-			midi_notes_last[channel] = event.buffer[1];
-			pthread_mutex_unlock(&midi_mutex);
-			break;
-
-		case 0xB0: /* Control Change */
-			pthread_mutex_lock(&midi_mutex);
-			midi_controls[channel]
-			             [event.buffer[1]] = event.buffer[2];
-			pthread_mutex_unlock(&midi_mutex);
-			break;
-		}
+		jack_ringbuffer_write(midi_port.buffer,
+		                      (const char *)&sample, sizeof(sample));
 	}
 
 	return 0;
@@ -370,25 +335,24 @@ init_audio(int buffer_size)
 	/*
 	 * Create MIDI input port
 	 */
-	midi_port = jack_port_register(client, "midi_input",
-	                               JACK_DEFAULT_MIDI_TYPE,
-	                               JackPortIsInput, 0);
-	if (midi_port == NULL) {
+	midi_port.jack_port = jack_port_register(client, "midi_input",
+	                                         JACK_DEFAULT_MIDI_TYPE,
+	                                         JackPortIsInput, 0);
+	if (midi_port.jack_port == NULL) {
 		fprintf(stderr, "no more JACK ports available\n");
 		return 1;
 	}
 
-	memset(&midi_controls, 0, sizeof(midi_controls));
-	memset(&midi_notes, 0, sizeof(midi_notes));
-	memset(&midi_notes_last, 0, sizeof(midi_notes_last));
-
-	pthread_mutexattr_t prioinherit;
-	if (pthread_mutexattr_setprotocol(&prioinherit, PTHREAD_PRIO_INHERIT)) {
-		fprintf(stderr, "Error initializing MIDI mutex with priority inheritance!\n");
+	/*
+	 * Make sure that the MIDI buffer is large enough to hold the maximum
+	 * number of MIDI samples delivered in jack_process().
+	 */
+	midi_port.buffer = jack_ringbuffer_create(sizeof(applause_midi_sample)*
+	                                          jack_get_buffer_size(client));
+	if (!midi_port.buffer) {
+		fprintf(stderr, "cannot create ringbuffer\n");
 		return 1;
 	}
-
-	pthread_mutex_init(&midi_mutex, &prioinherit);
 
 	/* Tell the JACK server that we are ready to roll.  Our
 	 * process() callback will start running now. */
@@ -424,120 +388,6 @@ init_audio(int buffer_size)
 	jack_free(ports);
 
 	return 0;
-}
-
-/**
- * Get the MIDI velocity of the `note` last
- * triggered on `channel` due to a NOTE ON message.
- * This function is meant to be called using LuaJIT's
- * FFI interface.
- */
-int
-applause_midi_velocity_getvalue(int note, int channel)
-{
-	int value;
-
-	/*
-	 * It's enough to assert() here since this
-	 * function should only be called by the
-	 * MIDIVelocityStream generator.
-	 */
-	assert(0 <= note && note <= 127);
-	assert(1 <= channel && channel <= 16);
-
-	/* The NOTE arrays are 0-based */
-	channel--;
-
-	pthread_mutex_lock(&midi_mutex);
-	/*
-	 * This thread might be lifted to realtime priority
-	 * since this is a priority inheritance mutex.
-	 * We will block a realtime thread while we're in the
-	 * critical section.
-	 * Therefore it is crucial that the following code
-	 * is realtime-safe.
-	 */
-	value = midi_notes[channel][note];
-	pthread_mutex_unlock(&midi_mutex);
-
-	return value;
-}
-
-/**
- * Get the MIDI note and velocity of the note last
- * triggered on `channel`.
- * This function is meant to be called using LuaJIT's
- * FFI interface.
- *
- * @return A MIDI note number (least significant byte) and
- *         velocity (second least significant byte).
- */
-int
-applause_midi_note_getvalue(int channel)
-{
-	int value;
-
-	/*
-	 * It's enough to assert() here since this
-	 * function should only be called by the
-	 * MIDINoteStream generator.
-	 */
-	assert(1 <= channel && channel <= 16);
-
-	/* The NOTE arrays are 0-based */
-	channel--;
-
-	pthread_mutex_lock(&midi_mutex);
-	/*
-	 * This thread might be lifted to realtime priority
-	 * since this is a priority inheritance mutex.
-	 * We will block a realtime thread while we're in the
-	 * critical section.
-	 * Therefore it is crucial that the following code
-	 * is realtime-safe.
-	 */
-	value = midi_notes_last[channel] |
-	        (midi_notes[channel][midi_notes_last[channel]] << 8);
-	pthread_mutex_unlock(&midi_mutex);
-
-	return value;
-}
-
-/**
- * Get the last value of the MIDI control `control`
- * on `channel`.
- * This function is meant to be called using LuaJIT's
- * FFI interface.
- */
-int
-applause_midi_cc_getvalue(int control, int channel)
-{
-	int value;
-
-	/*
-	 * It's enough to assert() here since this
-	 * function should only be called by the
-	 * MIDICCStream generator.
-	 */
-	assert(0 <= control && control <= 127);
-	assert(1 <= channel && channel <= 16);
-
-	/* The NOTE arrays are 0-based */
-	channel--;
-
-	pthread_mutex_lock(&midi_mutex);
-	/*
-	 * This thread might be lifted to realtime priority
-	 * since this is a priority inheritance mutex.
-	 * We will block a realtime thread while we're in the
-	 * critical section.
-	 * Therefore it is crucial that the following code
-	 * is realtime-safe.
-	 */
-	value = midi_controls[channel][control];
-	pthread_mutex_unlock(&midi_mutex);
-
-	return value;
 }
 
 enum applause_audio_state {
@@ -602,6 +452,23 @@ applause_push_sample(int output_port_id, double sample_double)
 	}
 
 	return APPLAUSE_AUDIO_OK;
+}
+
+/**
+ * Pull one MIDI sample from the ring buffer.
+ *
+ * This can be called from MIDIStream's tick function.
+ *
+ * @return A MIDI event encoded into a MIDI sample, or 0.
+ */
+applause_midi_sample
+applause_pull_midi_sample(void)
+{
+	applause_midi_sample sample = 0;
+
+	jack_ringbuffer_read(midi_port.buffer, (char *)&sample, sizeof(sample));
+
+	return sample;
 }
 
 static int

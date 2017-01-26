@@ -83,9 +83,9 @@ enum applause_audio_state {
 enum applause_audio_state applause_push_sample(int output_port_id,
                                                double sample_double);
 
-int applause_midi_velocity_getvalue(int note, int channel);
-int applause_midi_note_getvalue(int channel);
-int applause_midi_cc_getvalue(int control, int channel);
+typedef uint32_t applause_midi_sample;
+
+applause_midi_sample applause_pull_midi_sample(void);
 ]]
 
 -- Sample rate
@@ -1642,113 +1642,58 @@ end
 
 --
 -- MIDI Support
+-- NOTE: The MIDIStream is defined at the very end, since
+-- we need to use primitives not yet defined
 --
 
--- Velocity of NOTE ON for a specific note on a channel
-MIDIVelocityStream = DeriveClass(Stream)
+-- Last value of a specific control channel
+function Stream:CC(control, channel)
+	channel = channel or 0
 
-function MIDIVelocityStream:ctor(note, channel)
-	-- `note` may be a note name like "A4"
-	self.note = type(note) == "string" and ntom(note) or note
-	assert(0 <= self.note and self.note <= 127,
-	       "MIDI note out of range (0 <= x <= 127)")
-
-	self.channel = channel or 1
-	assert(1 <= self.channel and self.channel <= 16,
-	       "MIDI channel out of range (1 <= x <= 16)")
-end
-
--- This is for calling from external code (e.g. from
--- streams supporting MIDI natively)
-function MIDIVelocityStream.getValue(note, channel)
-	-- `note` may be a note name like "A4"
-	note = type(note) == "string" and ntom(note) or note
-	-- NOTE: The native function assert() for invalid
-	-- notes or channels to avoid segfaults
-	assert(0 <= note and note <= 127,
-	       "MIDI note out of range (0 <= x <= 127)")
-	assert(1 <= channel and channel <= 16,
-	       "MIDI channel out of range (1 <= x <= 16)")
-
-	return C.applause_midi_velocity_getvalue(note, channel)
-end
-
-function MIDIVelocityStream:gtick()
-	local note = self.note
-	local channel = self.channel
-
-	return function()
-		return C.applause_midi_velocity_getvalue(note, channel)
-	end
-end
-
--- Stream of integer words representing the last MIDI note
--- triggered on a channel with its corresponding velocity
--- (of the NOTE ON message).
--- The MIDI note is the lower byte and the velocity the
--- upper byte of the word.
-MIDINoteStream = DeriveClass(Stream)
-
-function MIDINoteStream:ctor(channel)
-	self.channel = channel or 1
-	assert(1 <= self.channel and self.channel <= 16,
-	       "MIDI channel out of range (1 <= x <= 16)")
-end
-
--- This is for calling from external code (e.g. from
--- streams supporting MIDI natively)
-function MIDINoteStream.getValue(channel)
-	-- NOTE: The native function assert() for invalid
-	-- notes or channels to avoid segfaults
-	assert(1 <= channel and channel <= 16,
-	       "MIDI channel out of range (1 <= x <= 16)")
-
-	return C.applause_midi_note_getvalue(channel)
-end
-
-function MIDINoteStream:gtick()
-	local channel = self.channel
-
-	return function()
-		return C.applause_midi_note_getvalue(channel)
-	end
-end
-
-MIDICCStream = DeriveClass(Stream)
-
-function MIDICCStream:ctor(control, channel)
-	self.control = control
-	self.channel = channel or 1
-
-	assert(0 <= self.control and self.control <= 127,
-	       "MIDI control number out of range (0 <= x <= 127)")
-	assert(1 <= self.channel and self.channel <= 16,
-	       "MIDI channel out of range (1 <= x <= 16)")
-end
-
--- This is for calling from external code (e.g. from
--- streams supporting MIDI natively)
-function MIDICCStream.getValue(control, channel)
-	-- NOTE: The native function assert() for invalid
-	-- notes or channels to avoid segfaults
 	assert(0 <= control and control <= 127,
 	       "MIDI control number out of range (0 <= x <= 127)")
-	assert(1 <= channel and channel <= 16,
-	       "MIDI channel out of range (1 <= x <= 16)")
+	assert(0 <= channel and channel <= 15,
+	       "MIDI channel out of range (0 <= x <= 15)")
 
-	return C.applause_midi_cc_getvalue(control, channel)
+	local filter = bit.bor(0xB0, channel, bit.lshift(control, 8))
+	local value = 0
+	local band, rshift = bit.band, bit.rshift
+
+	return self:map(function(sample)
+		value = band(sample, 0xFFFF) == filter and
+		        rshift(sample, 16) or value
+		return value
+	end)
 end
 
-function MIDICCStream:gtick()
-	local control = self.control
-	local channel = self.channel
+-- Velocity of NOTE ON for a specific note on a channel
+function Stream:mvelocity(note, channel)
+	-- `note` may be a note name like "A4"
+	note = type(note) == "string" and ntom(note) or note
+	channel = channel or 0
 
-	return function()
-		return C.applause_midi_cc_getvalue(control, channel)
-	end
+	assert(0 <= note and note <= 127,
+	       "MIDI note out of range (0 <= x <= 127)")
+	assert(0 <= channel and channel <= 15,
+	       "MIDI channel out of range (0 <= x <= 15)")
+
+	local on_filter  = bit.bor(0x90, channel, bit.lshift(note, 8))
+	local off_filter = bit.bor(0x80, channel, bit.lshift(note, 8))
+	local value = 0
+	local band, rshift = bit.band, bit.rshift
+
+	return self:map(function(sample)
+		value = band(sample, 0xFFFF) == on_filter and
+		        rshift(sample, 16) or
+		        band(sample, 0xFFFF) == off_filter and
+		        0 or value
+		return value
+	end)
 end
 
+--
 -- MIDI primitives
+--
 
 do
 	local band = bit.band
@@ -2334,3 +2279,22 @@ Client.__gc = Client.kill
 -- so they react to reload()
 --
 dofile "dssi.lua"
+
+--
+-- See above, MIDIStream depends on tostream() and other
+-- primitives.
+--
+do
+	local class = DeriveClass(Stream)
+
+	function class:gtick()
+		return C.applause_pull_midi_sample
+	end
+
+	-- FIXME: Since a sample must only be pulled once
+	-- per tick, so MIDIStream can be reused, it must
+	-- always be cached.
+	-- Perhaps it's easier to peek into the ring buffer
+	-- advance the read pointer per tick.
+	MIDIStream = class:cache()
+end
