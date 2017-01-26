@@ -2333,4 +2333,4 @@ Client.__gc = Client.kill
 -- Additional modules are loaded with dofile(),
 -- so they react to reload()
 --
-dofile "ladspa.lua"
+dofile "dssi.lua"
