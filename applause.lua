@@ -343,10 +343,17 @@ end
 function Stream:delay(length)
 	return DelayStream:new(self, length)
 end
+function Stream:delayx(length, max_length)
+	return DelayXStream:new(self, length, max_length)
+end
 
 function Stream:echo(length, wetness)
 	local cached = self:cache()
 	return cached:mix(cached:delay(length), wetness)
+end
+function Stream:echox(length, wetness, max_length)
+	local cached = self:cache()
+	return cached:mix(cached:delayx(length, max_length), wetness)
 end
 
 -- This is a linear resampler thanks to the
@@ -1641,6 +1648,48 @@ function DelayStream:len()
 end
 
 --
+-- Delay line with a variable (stream) length and
+-- maximum length. Non-interpolating.
+-- This is not part of DelayStream, mainly because
+-- we cannot accurately calculate the length of the resulting
+-- stream.
+-- FIXME: Probably currently broken.
+--
+DelayXStream = DeriveClass(MuxableStream)
+
+DelayXStream.sig_last_stream = 2
+
+function DelayXStream:muxableCtor(stream, length, max_length)
+	self.stream = stream
+	self.length = length
+	self.max_length = max_length or sec(1)
+end
+
+function DelayXStream:gtick()
+	local ceil = math.ceil
+	local tick = self.stream:gtick()
+	local length_tick = self.length:gtick()
+	local max_length = self.max_length
+	local buffer = table.new(max_length, 0)
+	local write_pos = 1
+	local read_pos = 1
+
+	for i = 1, max_length do buffer[i] = 0 end
+
+	return function()
+		local sample = buffer[ceil(read_pos)]
+		buffer[write_pos] = tick()
+		write_pos = (write_pos % max_length) + 1
+		read_pos = (read_pos + max_length/length_tick()) % max_length
+		return sample
+	end
+end
+
+function DelayXStream:len()
+	return self.max_length + self.stream:len()
+end
+
+--
 -- MIDI Support
 -- NOTE: The MIDIStream is defined at the very end, since
 -- we need to use primitives not yet defined
@@ -1771,7 +1820,7 @@ function Stream:fton() return self:map(fton) end
 -- Attack-Sustain and Decay phases based on real-time control signals.
 -- The note values can be passed into the constructor by using functions
 -- for the "on" and "off" streams.
--- Usually, the note stream will be a MIDIVelocityStream, so the two
+-- Usually, the note stream will be a MIDIStream:mvelocity(), so the two
 -- instrument streams can be based on the MIDI velocity (but don't have
 -- to be if the velocity is not important).
 InstrumentStream = DeriveClass(MuxableStream)
