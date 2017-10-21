@@ -963,10 +963,11 @@ main(int argc, char **argv)
 	 * FIXME: Shut down connection server.
 	 * FIXME: Clean up properly.
 	 */
-	for (int i = 0; i < output_ports_count; i++) {
+#if 0
+	for (int i = 0; i < output_ports_count; i++)
 		svsem_free(output_ports[i].buffer_sem);
-	}
 	free(output_ports);
+#endif
 
 	lua_close(L);
 
