@@ -19,6 +19,12 @@ function cdef_safe(def)
 	end
 end
 
+function cdef_include(file)
+	local hnd = assert(io.open(file))
+	cdef_safe(hnd:read('*a'))
+	hnd:close()
+end
+
 --
 -- Define C functions for benchmarking (POSIX libc)
 --
@@ -71,6 +77,7 @@ end
 --
 -- Define the Lua FFI part of Applause's C core.
 -- These functions and types are defined in applause.c
+-- FIXME: Could be read from a common file.
 --
 cdef_safe[[
 enum applause_audio_state {
@@ -83,9 +90,13 @@ enum applause_audio_state {
 enum applause_audio_state applause_push_sample(int output_port_id,
                                                double sample_double);
 
+// FIXME: Perhaps a struct would be easier to handle?
 typedef uint32_t applause_midi_sample;
 
 applause_midi_sample applause_pull_midi_sample(void);
+
+// Useful in various situations
+void free(void *ptr);
 ]]
 
 -- Sample rate
@@ -287,6 +298,8 @@ end
 
 -- same as Stream:scale() but for values between [0, 127]
 -- (ie. MIDI CC values)
+-- FIXME: If Stream:CC() would output between [-1, 1], there would be no need
+-- for Stream:ccscale().
 function Stream:ccscale(v1, v2)
 	local lower = v2 and v1 or 0
 	local upper = v2 or v1
@@ -527,9 +540,8 @@ function Stream:foreach(fnc)
 	local tick = self:gtick()
 
 	while true do
-		clear(sampleCache)
-
 		frame[1] = tick()
+		clear(sampleCache)
 		if not frame[1] or fnc(frame) then break end
 	end
 end
@@ -542,6 +554,35 @@ function Stream:benchmark()
 	benchmark(function()
 		self:foreach(function() end)
 	end)
+end
+
+-- Dump bytecode of tick function.
+function Stream:jbc(out, all)
+	-- Load the utility library on-demand.
+	-- Its API is not stable according to luajit docs.
+	require("jit.bc").dump(self:gtick(), out, all)
+end
+
+function Stream:jdump(opt, outfile)
+	local dump = require("jit.dump")
+	local tick = self:gtick()
+
+	-- Make sure we discard any existing traces to
+	-- arrive at more or less reproducible results
+	jit.flush(tick, true)
+	jit.on(tick, true)
+
+	dump.on(opt, outfile)
+	-- FIXME: A single tick() call will not get jit-compiled
+	-- and there appears to be no way to force compilation of a function.
+	-- Getting any output at all would require saving the stream and
+	-- force some bulk calculations, so instead we always generate
+	-- up to 1s of samples here.
+	local _, err = pcall(function()
+		for _ = 1, samplerate do tick() end
+	end)
+	dump.off()
+	if err then error(err) end
 end
 
 -- TODO: Use a buffer to improve perfomance (e.g. 1024 samples)
@@ -1710,7 +1751,7 @@ function Stream:CC(control, channel)
 
 	return self:map(function(sample)
 		value = band(sample, 0xFFFF) == filter and
-		        rshift(sample, 16) or value
+		        tonumber(rshift(sample, 16)) or value
 		return value
 	end)
 end
@@ -1897,7 +1938,9 @@ function Stream:instrument(on_stream, off_stream)
 	return InstrumentStream:new(self, on_stream, off_stream)
 end
 
--- primitives
+--
+-- Primitives
+--
 
 function tostream(v)
 	if type(v) == "table" then
@@ -2328,6 +2371,7 @@ Client.__gc = Client.kill
 -- so they react to reload()
 --
 dofile "dssi.lua"
+dofile "evdev.lua"
 
 --
 -- See above, MIDIStream depends on tostream() and other
@@ -2343,7 +2387,7 @@ do
 	-- FIXME: Since a sample must only be pulled once
 	-- per tick, so MIDIStream can be reused, it must
 	-- always be cached.
-	-- Perhaps it's easier to peek into the ring buffer
-	-- advance the read pointer per tick.
+	-- FIXME: This could be done directly in gtick(),
+	-- so this definition can be moved upwards to the rest of the MIDI stuff.
 	MIDIStream = class:cache()
 end

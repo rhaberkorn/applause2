@@ -21,8 +21,8 @@ LDFLAGS += -rdynamic
 
 all : applause
 
-applause : applause.o
-	$(CC) -o $@ $< $(LDFLAGS)
+applause : applause.o evdev.o
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean:
 	$(RM) *.o applause
