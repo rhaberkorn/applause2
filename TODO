@@ -1,0 +1,44 @@
+# Bugs
+
+* Stream:foreach() cannot be interrupted
+  Perhaps C core should export an interrupted variable that we can check from Lua.i
+  For Stream:play() this is solved differently.
+* EvdevStream("TrackPoint"):evrel('REL_X'):scale(440,880):SinOsc():play()
+  Afterwards even Stream.SinOsc(880):play() will stutter.
+  However, this seems to happen only with the builtin speakers.
+
+# Features
+
+* Line Continuations on the CLI (like Lua's CLI)
+* CLI auto completions via libreadline
+* OSC support
+* Audio input (see inputstream branch)
+* File writing during live playback to avoid having to use jack_rec.
+* Multi-core support via GStreamer-like queue:
+  https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-queue.html
+* Stream optimizer
+  * Automatic caching (finding identical subtrees)
+  * Automatic paralellization
+  * ...
+* Documentation.
+  Either we use LDoc or manually write a Markdown file.
+
+# Improvements
+
+* add optional Stream:gtickCtx() containing potentially real-time unsafe code.
+  Higher-order streams call Stream:gtickCtx() for all dependant streams only
+  once in their own gtickCtx() function.
+  This will allow gtick() to be called in tick-functions (that must be real-time safe).
+* Inconsistent signal normalization.
+  Some signals like Stream:CC() are not normalized to [-1,1], so you need
+  special scaling methods like Stream:ccscale().
+  The supposed advantage is that often a signal between [0,1] is needed, so you only
+  need a single division. E.g. Stream:mul(Stream:CC(...) / 127).
+  On the other hand, with normalized outputs, you could also write Stram:mul(Stream:CC(...):scale(1)).
+  Or there could even be a Stream:vol() method that takes signals between [-1,1].
+  The question is whether the JIT compiler is smart enough to optimize this code.
+* Does the compiler currently produce SIMD instructions?
+  Perhaps we need blockwise processing to faciliate those optimizations.
+  Unfortunately, this would complicate all of the code.
+  Unless we could define a block with metamethods to allow basic arithmetics to be
+  performed just like on scalars.

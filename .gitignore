@@ -1,2 +1,4 @@
 /applause
 *.o
+
+/.applause_history
