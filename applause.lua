@@ -1732,9 +1732,22 @@ end
 
 --
 -- MIDI Support
--- NOTE: The MIDIStream is defined at the very end, since
--- we need to use primitives not yet defined
 --
+
+MIDIStream = DeriveClass(Stream)
+
+function MIDIStream:gtick()
+	return function()
+		-- This is always cached since there is only one MIDI event queue
+		-- and it must not be pulled more than once per tick.
+		local sample = sampleCache[self]
+		if not sample then
+			sample = C.applause_pull_midi_sample()
+			sampleCache[self] = sample
+		end
+		return sample
+	end
+end
 
 -- Last value of a specific control channel
 function Stream:CC(control, channel)
@@ -2372,22 +2385,3 @@ Client.__gc = Client.kill
 --
 dofile "dssi.lua"
 dofile "evdev.lua"
-
---
--- See above, MIDIStream depends on tostream() and other
--- primitives.
---
-do
-	local class = DeriveClass(Stream)
-
-	function class:gtick()
-		return C.applause_pull_midi_sample
-	end
-
-	-- FIXME: Since a sample must only be pulled once
-	-- per tick, so MIDIStream can be reused, it must
-	-- always be cached.
-	-- FIXME: This could be done directly in gtick(),
-	-- so this definition can be moved upwards to the rest of the MIDI stuff.
-	MIDIStream = class:cache()
-end
