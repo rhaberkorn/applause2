@@ -33,6 +33,8 @@
 #include <jack/midiport.h>
 #include <jack/ringbuffer.h>
 
+#include "midi.h"
+
 #define LUA_MODULE		"applause.lua"
 #define APPLAUSE_HISTORY	".applause_history"
 
@@ -73,8 +75,6 @@ typedef struct applause_midi_port {
 } applause_midi_port;
 
 static applause_midi_port midi_port;
-
-typedef uint32_t applause_midi_sample;
 
 static int
 svsem_init(size_t value)
