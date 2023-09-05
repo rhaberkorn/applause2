@@ -33,6 +33,7 @@
 #include <jack/midiport.h>
 #include <jack/ringbuffer.h>
 
+#include "applause.h"
 #include "midi.h"
 
 #define LUA_MODULE		"applause.lua"
@@ -390,13 +391,6 @@ init_audio(int buffer_size)
 
 	return 0;
 }
-
-enum applause_audio_state {
-	APPLAUSE_AUDIO_OK = 0,
-	APPLAUSE_AUDIO_INTERRUPTED,
-	APPLAUSE_AUDIO_XRUN,
-	APPLAUSE_AUDIO_INVALID_PORT
-};
 
 /**
  * Push one Jack sample into the ring buffer.

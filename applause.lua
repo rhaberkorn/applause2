@@ -24,6 +24,8 @@ function cdef_include(file)
 	hnd:close()
 end
 
+cdef_include "applause.h"
+
 --
 -- Define C functions for benchmarking (POSIX libc)
 --
@@ -47,6 +49,9 @@ typedef enum {
 } clockid_t;
 
 int clock_gettime(clockid_t clk_id, struct timespec *tp);
+
+// Useful in various situations
+void free(void *ptr);
 ]]
 
 -- Measure time required to execute fnc()
@@ -72,26 +77,6 @@ function benchmark(fnc)
 
 	print("Elapsed CPU time: "..tonumber(t2_ms - t1_ms).."ms")
 end
-
---
--- Define the Lua FFI part of Applause's C core.
--- These functions and types are defined in applause.c
--- FIXME: Could be read from a common file.
---
-cdef_safe[[
-enum applause_audio_state {
-	APPLAUSE_AUDIO_OK = 0,
-	APPLAUSE_AUDIO_INTERRUPTED,
-	APPLAUSE_AUDIO_XRUN,
-	APPLAUSE_AUDIO_INVALID_PORT
-};
-
-enum applause_audio_state applause_push_sample(int output_port_id,
-                                               double sample_double);
-
-// Useful in various situations
-void free(void *ptr);
-]]
 
 -- Sample rate
 -- This is overwritten by the C core
