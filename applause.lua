@@ -91,7 +91,7 @@ function msec(x) return sec((x or 1)/1000) end
 -- The sample cache used to implement CachedStream.
 -- We don't know how large it must be, but once it is
 -- allocated we only table.clear() it.
-local sampleCache = {}
+sampleCache = {}
 
 -- Reload the main module: Useful for hacking it without
 -- restarting applause
