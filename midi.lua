@@ -127,7 +127,7 @@ do
 	local mtof_cache = table.new(128, 0)
 	for note = 0, 127 do
 		-- MIDI NOTE 69 corresponds to 440 Hz
-		mtof_cache[note] = 440*math.pow(2, (note - 69)/12)
+		mtof_cache[note] = 440 * 2^((note - 69)/12)
 	end
 
 	-- Convert from MIDI note to frequency
