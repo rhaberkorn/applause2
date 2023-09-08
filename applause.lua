@@ -500,27 +500,31 @@ function Stream:benchmark()
 end
 
 -- Dump bytecode of tick function.
+-- FIXME: Return string instead
 function Stream:jbc(out, all)
 	-- Load the utility library on-demand.
 	-- Its API is not stable according to luajit docs.
 	require("jit.bc").dump(self:gtick(), out, all)
 end
 
+-- FIXME: Return string instead
 function Stream:jdump(opt, outfile)
 	local dump = require("jit.dump")
 	local tick = self:gtick()
 
+	jit.off(true, true)
+	jit.on(tick, true)
 	-- Make sure we discard any existing traces to
 	-- arrive at more or less reproducible results
 	jit.flush(tick, true)
-	jit.on(tick, true)
 
 	dump.on(opt, outfile)
-	-- FIXME: A single tick() call will not get jit-compiled
+	-- NOTE: A single tick() call may not get JIT-compiled
 	-- and there appears to be no way to force compilation of a function.
 	-- Getting any output at all would require saving the stream and
 	-- force some bulk calculations, so instead we always generate
 	-- up to 1s of samples here.
+	-- See also the "hotloop" optimization parameter.
 	local _, err = pcall(function()
 		for _ = 1, samplerate do tick() end
 	end)
