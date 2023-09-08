@@ -188,8 +188,10 @@ Stream.channels = 1
 -- A stream, produces an infinite number of the same value by default
 -- (eternal quietness by default)
 function Stream:gtick()
+	local value = self.value
+
 	return function()
-		return self.value
+		return value
 	end
 end
 
