@@ -1,12 +1,31 @@
+---
+--- @module applause
+---
 local sndfile = require "sndfile"
 
+--- Stream for reading a sound file.
+-- This can be used with all file types supported by [libsndfile](http://www.mega-nerd.com/libsndfile/#Features).
+-- @type SndfileStream
 SndfileStream = DeriveClass(Stream)
 
+--- Create a SndfileStream.
+-- @function new
+-- @string filename Filename of sound file to read.
+-- @int[opt] samplerate
+--   Samplerate of file.
+--   This is ignored unless reading files in ffi.C.SF_FORMAT_RAW.
+-- @int[opt] channels
+--   Number of channels in file.
+--   This is ignored unless reading files in ffi.C.SF_FORMAT_RAW.
+-- @tparam[opt] SF_FORMAT format
+--   Format of file to read ([C type](http://www.mega-nerd.com/libsndfile/api.html)).
+--   If omitted, this guessed from the file extension.
+-- @treturn SndfileStream|MuxStream
+-- @see Stream:save
+-- @usage SndfileStream("test.wav"):play()
+-- @fixme This fails if the file is not at the correct sample rate.
+-- Need to resample...
 function SndfileStream:ctor(filename, samplerate, channels, format)
-	-- FIXME: This fails if the file is not at the
-	-- correct sample rate. Need to resample...
-	-- NOTE: samplerate and channels are ignored unless SF_FORMAT_RAW
-	-- files are read.
 	local handle = sndfile:new(filename, "SFM_READ",
 	                           samplerate, channels, format)
 	self.filename = filename
@@ -64,9 +83,24 @@ function SndfileStream:gtick()
 	end
 end
 
-function SndfileStream:len() return self.frames end
+function SndfileStream:len()
+	return self.frames
+end
 
--- TODO: Use a buffer to improve perfomance (e.g. 1024 samples)
+--- Save stream to sound file.
+-- Naturally, this cannot work with infinite streams.
+-- Since the stream is processed/written as fast as possible,
+-- it is not possible to capture real-time input.
+-- @within Class Stream
+-- @string filename Filename of sound file to write
+-- @tparam[opt] SF_FORMAT format
+--   Format of file to write (C type).
+--   If omitted, this guessed from the file extension.
+-- @see SndfileStream
+-- @fixme It would be useful to have a Stream:save method that works
+-- during playback with real-time input.
+-- In this case, you could do a Stream:save(...):drain().
+-- @todo Use a buffer to improve perfomance (e.g. 1024 samples)
 function Stream:save(filename, format)
 	if self:len() == math.huge then
 		error("Cannot save infinite stream")

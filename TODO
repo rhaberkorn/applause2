@@ -1,34 +1,54 @@
 # Bugs
 
 * Stream:foreach() cannot be interrupted
-  Perhaps C core should export an interrupted variable that we can check from Lua.i
+  Perhaps C core should export an interrupted variable that we can check from Lua.
   For Stream:play() this is solved differently.
+* Stream:gtick() is not real-time safe but called from tick functions currently.
+  This could be resolved by letting gtick() return an initializer function and only
+  this initializer function will return the tick function.
+  Streams could implement a get_tick_init() method and Stream:gtick() would continue
+  to exist as a shortcut.
 * EvdevStream("TrackPoint"):evrel('REL_X'):scale(440,880):SinOsc():play()
   Afterwards even Stream.SinOsc(880):play() will stutter.
-  However, this seems to happen only with the builtin speakers.
+  However, this seems to happen only with the builtin speakers and with other programs as well.
 
 # Features
 
 * Line Continuations on the CLI (like Lua's CLI)
-* CLI auto completions via libreadline
+* CLI auto completions via libreadline.
+  This could directly introspect the Stream object for instance.
+  All of this should be ported to Lua code naturally.
 * OSC support
 * Audio input (see inputstream branch)
 * File writing during live playback to avoid having to use jack_rec.
+  Stream:save() could be adapted and an immediate save could be achieved using a Stream:drain() method
+  or with a Stream:savenow() shortcut.
 * Multi-core support via GStreamer-like queue:
   https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-queue.html
 * Stream optimizer
   * Automatic caching (finding identical subtrees)
   * Automatic paralellization
+  * Automatic eager evaluation of small Streams independant of real-time input.
+  * Resolving Stream:sub() by alternative means, e.g. specifying an osciallator phase or
+    passing in a seek to a SndfileStream.
   * ...
-* Documentation.
-  Either we use LDoc or manually write a Markdown file.
+* Github pages (LDoc documentation).
+  They can be automatically pushed by a Github action.
+  Since they will always be public, copyright questions should be resolved first.
 
 # Improvements
 
-* add optional Stream:gtickCtx() containing potentially real-time unsafe code.
+* add optional Stream:gtickCtx() (or Stream:get_tick_init()) containing potentially real-time unsafe code.
   Higher-order streams call Stream:gtickCtx() for all dependant streams only
   once in their own gtickCtx() function.
   This will allow gtick() to be called in tick-functions (that must be real-time safe).
+* It could be useful to pass a timestamp (in samples) into the tick function.
+  This will simplify some calculations and allows resetting a stream elegantly (for instance in RepeatStream).
+  It will also speed up seeks, as in SubStream.
+  IndexStream could be without memory limits.
+  Unfortunately, it will not resolve all non-realtime-safe gtick-invocations.
+  It's also questionable what happens when the timestamp wraps. Whether a wrap is safe or not, will depend
+  on the generator.
 * Inconsistent signal normalization.
   Some signals like Stream:CC() are not normalized to [-1,1], so you need
   special scaling methods like Stream:ccscale().
@@ -37,8 +57,9 @@
   On the other hand, with normalized outputs, you could also write Stram:mul(Stream:CC(...):scale(1)).
   Or there could even be a Stream:vol() method that takes signals between [-1,1].
   The question is whether the JIT compiler is smart enough to optimize this code.
-* Does the compiler currently produce SIMD instructions?
-  Perhaps we need blockwise processing to faciliate those optimizations.
-  Unfortunately, this would complicate all of the code.
-  Unless we could define a block with metamethods to allow basic arithmetics to be
-  performed just like on scalars.
+* The JIT compiler currently does not emit SIMD instructions (see simd-test.lua).
+  See also https://github.com/LuaJIT/LuaJIT/issues/40
+* Perhaps always enable Fused multiply-add (-O+fma).
+  The reduced accuracy shouldn't hurt us much.
+* Allow building LuaJIT with -DLUAJIT_ENABLE_LUA52COMPAT.
+  This will enable #Stream and we may implement an __ipairs metamethod.

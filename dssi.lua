@@ -1,3 +1,6 @@
+---
+--- @module applause
+---
 local bit = require "bit"
 local ffi = require "ffi"
 local C = ffi.C
@@ -442,7 +445,7 @@ const DSSI_Descriptor *dssi_descriptor(unsigned long Index);
 
 local asound = ffi.load("asound")
 
--- Check for symbol existence in C library table.
+--- Check for symbol existence in C library table.
 -- There does not seem to be a more elegant way to do this.
 local function checkClibSymbol(lib, symbol)
 	return pcall(getmetatable(lib).__index, lib, symbol) == true
@@ -507,36 +510,42 @@ local function mangleInputPorts(input_ports, ...)
 	return input_ports
 end
 
+--- Stream wrapper for external DSSI and LADSPA plugins.
+-- @type DSSIStream
 DSSIStream = DeriveClass(Stream)
 
--- `file` is either the full path to a plugin library or a basename
--- looked up in $DSSI_PATH and $LADSPA_PATH.
--- It may be followed by an optional ":Label" to select a plugin by type
--- from this file (otherwise, the first one is used).
+--- Create a DSSI or LADSPA stream.
+-- @function new
+-- @string file
+--   `file` is either the full path to a plugin library or a basename
+--   looked up in $DSSI_PATH and $LADSPA_PATH.
+--   It may be followed by an optional ":Label" to select a plugin by type
+--   from this file (otherwise, the first one is used).
+-- @Stream[opt] midi_event_stream
+--   If the plugin is DSSI, this may be a @{MIDIStream}, but may also be nil.
+--   For LADSPA plugins, this argument already specifies the first input port.
+-- @tab[opt] input_ports
+--   A table defining the mapping from
+--   LADSPA port names to Streams or constants for audio and control input ports.
+--   This host does not make a difference between audio and control ports.
+--   A mapping from port Id to Streams (ie. an array of Streams corresponding
+--   with the ports) is also allowed.
+--   Every plugin input port must either be mapped or have a default value.
+--   Constants are handled specially and are faster than streams.
+--   Multi-channel input streams do not result in muxing of the DSSIStream,
+--   so every input stream must be mono.
+--   However, to ease binding the individual channels of a multi-channel
+--   stream, they are automatically expanded to consecutive input streams.
+-- @param ...
+--   All additional arguments are added to this table as an array,
+--   so port mappings can be specified as a list of arguments as well.
+-- @treturn DSSIStream|MuxStream
+--   Multi-channel output plugins are always muxed. But you may use
+--   @{Stream:demux} to discard uninteresting output channels.
+-- @see Stream:DSSI
 --
--- If the plugin is DSSI, the second argument may be a MIDI
--- event stream but may also be nil.
---
--- `input_ports` are tables defining the mapping from
--- LADSPA port names to Streams or constants for audio and control input ports.
--- This host does not make a difference between audio and control ports.
--- A mapping from port Id to Streams (ie. an array of Streams corresponding
--- with the ports) is also allowed.
--- All additional arguments are added to this table as an array,
--- so port mappings can be specified as a list of arguments as well.
--- Every plugin input port must either be mapped or have a default
--- value.
--- Constants are handled specially and are faster than streams.
--- Multi-channel input streams do not result in muxing of the DSSIStream,
--- so every input stream must be mono.
--- However, to ease binding the individual channels of a multi-channel
--- stream, they are automatically expanded to consecutive input streams.
---
--- Multi-channel output plugins are always muxed. But you may use
--- DSSIStream(...):demux(...) to discard uninteresting output channels.
---
--- FIXME: We could simplify things by just assuming a flat array of
--- input ports
+-- @fixme We could simplify things by just assuming a flat array of
+-- input ports.
 function DSSIStream:ctor(file, midi_event_stream, ...)
 	local plugin_file, label = file:match("^([^:]+):(.+)")
 	plugin_file = plugin_file or file
@@ -704,6 +713,8 @@ function DSSIStream:ctor(file, midi_event_stream, ...)
 	end
 end
 
+--- Get name of DSSI/LADSPA plugin.
+-- @treturn string
 function DSSIStream:getName()
 	return ffi.string(self.ladspa_descriptor.Name)
 end
@@ -838,11 +849,20 @@ function DSSIStream:gtick()
 	end
 end
 
--- For the Stream method, we just assume that the
--- subject stream is the MIDI stream (DSSI plugin),
--- or first input stream.
--- FIXME: This doesn't work for symbolic
--- port mappings, though.
+--- Apply DSSI or LADSPA plugin to stream.
+-- For a DSSI plugin, this must usually be called on a @{MIDIStream}.
+-- Otherwise, the object stream will be the plugin's first input stream.
+-- You cannot use this method to map the object stream to a symbolic port, though.
+-- @within Class Stream
+-- @string file File name of plugin.
+-- @tab[opt] input_ports
+--   A table defining the mapping from
+--   LADSPA port names to Streams or constants for audio and control input ports.
+-- @param ...
+--   All additional arguments are added to this table as an array,
+--   so port mappings can be specified as a list of arguments as well.
+-- @treturn Stream
+-- @see DSSIStream:new
 function Stream:DSSI(file, ...)
 	return DSSIStream:new(file, self, ...)
 end

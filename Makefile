@@ -19,10 +19,15 @@ LDFLAGS += $(LUA_LDFLAGS) $(READLINE_LDFLAGS) $(JACK_LDFLAGS) \
 # with the LuaJIT FFI interface:
 LDFLAGS += -rdynamic
 
+.PHONY: all doc
+
 all : applause
 
 applause : applause.o evdev.o
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+doc:
+	ldoc .
 
 clean:
 	$(RM) *.o applause

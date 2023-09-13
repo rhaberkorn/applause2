@@ -1,3 +1,7 @@
+---
+--- @classmod sndfile
+---
+
 -- module table
 local sndfile = {}
 

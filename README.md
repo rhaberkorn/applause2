@@ -14,6 +14,17 @@ Furthermore, install the following dependencies:
     sudo apt-get install build-essential libreadline-dev libjack-jackd2-dev \
                          libsndfile1 libasound2 feedgnuplot
 
+To compile the project, type:
+
+    make
+
+Up-to-date documentation is available at the [website](http://rhaberkorn.github.io/applause2).
+In case you want to build it manually, install the `lua-ldoc` and `lua-discount` packages and type:
+
+    make doc
+
+The generated documentation will be generated in the `doc/` subdirectory.
+
 ## Usage
 
 Start qjackctl.

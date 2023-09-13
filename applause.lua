@@ -1,3 +1,9 @@
+---
+--- This "module" lists all symbols available on a REPL prompt.
+--- It does not have to and cannot be externally included using `require`.
+--- @module applause
+--- @author Robin Haberkorn
+---
 local bit = require "bit"
 local ffi = require "ffi"
 -- According to LuaJIT docs, it makes sense to cache
@@ -54,8 +60,9 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp);
 void free(void *ptr);
 ]]
 
--- Measure time required to execute fnc()
--- See also Stream:benchmark()
+--- Measure time required to execute fnc()
+-- @func fnc Function to benchmark
+-- @see Stream:benchmark
 function benchmark(fnc)
 	local t1 = ffi.new("struct timespec[1]")
 	local t2 = ffi.new("struct timespec[1]")
@@ -78,29 +85,48 @@ function benchmark(fnc)
 	print("Elapsed CPU time: "..tonumber(t2_ms - t1_ms).."ms")
 end
 
--- Sample rate
--- This is overwritten by the C core
+--- Sample rate in Hz.
+-- This variable is overwritten by the C core.
 samplerate = 44100
 
--- Time units: Convert between time and sample numbers
+--- Convert seconds to sample numbers
 -- These are functions, so we can round the result
--- automatically
+-- automatically.
+-- @number[opt=1] x Number of seconds
+-- @treturn int Number of samples
 function sec(x) return math.floor(samplerate*(x or 1)) end
+--- Convert milliseconds to sample numbers.
+-- @number[opt=1] x Number of milliseconds
+-- @treturn int Number of samples
 function msec(x) return sec((x or 1)/1000) end
 
--- The sample cache used to implement CachedStream.
+--- The sample cache.
+-- This maps @{Stream} objects to arbitrary values (usually numbers) and
+-- can be used by Stream implementations to avoid recalculations during a single tick.
+-- It is cleared after every tick.
+-- You usually **don't** have to access this table manually, but *should* use
+-- @{Stream:cache} instead.
+-- This is only seldom useful when implementing new Stream classes.
+--
 -- We don't know how large it must be, but once it is
 -- allocated we only table.clear() it.
 sampleCache = {}
 
--- Reload the main module: Useful for hacking it without
--- restarting applause
+--- Reload the main module.
+-- Useful for hacking it without having to restart the application.
+-- @local
 function reload()
 	dofile "applause.lua"
 	collectgarbage()
 end
 
--- FIXME: Inconsistent naming. Use all-lower case for functions
+--- Derive class
+-- @tparam[opt] Class base
+--   Base class.
+--   This should usually be @{Stream} or @{MuxableStream} when deriving custom Stream classes.
+-- @return Derived class table
+--
+-- @fixme Inconsistent naming. Use all-lower case for functions
 -- and methods?
 function DeriveClass(base)
 	local class = {base = base}
@@ -170,12 +196,38 @@ function DeriveClass(base)
 	return class
 end
 
--- Stream base class
+--- Stream base class.
+-- This can be instantiated to generate plain values (although you should usually
+-- use @{tostream} instead).
+-- This class is also important to derive from in order to implement custom Streams.
+-- Most importantly, it defines all common Stream operations.
+-- @type Stream
 Stream = DeriveClass()
 
+--- Create a stream for generating values.
+-- The stream will produce the same value in every tick.
+-- @within Class Stream
+-- @fixme The @within tag is necessary to fix later additions to the Stream class
+-- after the end of the section.
+-- @function Stream:new
+-- @param[opt=0] value Value to generate
+-- @treturn Stream
+-- @see tostream
+-- @usage Stream:new(23)
+-- @usage Stream(23)
 function Stream:ctor(value)
+	-- @fixme Why does this convert everything to a number?
 	self.value = tonumber(value) or 0
 end
+
+--- Stream constructor.
+-- This is an **abstract** method that must be implemented when deriving custom classes.
+-- It is never invoked directly - use the corresponding @{Stream:new} method instead.
+-- @function ctor
+-- @param ... Arbitrary parameters, passed on from the @{Stream:new} method.
+-- @treturn ?Stream
+--   You can optionally return a @{Stream} instance to competely replace the object table.
+--   If given, this value will be returned by the @{Stream:new} method instead.
 
 -- There is Stream:instanceof(), but testing Stream.is_a_stream
 -- is sometimes faster (for generator functions) and can be done
@@ -187,6 +239,11 @@ Stream.channels = 1
 
 -- A stream, produces an infinite number of the same value by default
 -- (eternal quietness by default)
+-- @fixme This should probably be renamed and return a function in a function,
+-- so you can do non-realtime safe stuff in Stream:gtick and real-time
+-- safe initialization in the returned function.
+-- This would allow "resetting" dependant streams from real-time safe tick
+-- functions.
 function Stream:gtick()
 	local value = self.value
 
@@ -195,28 +252,102 @@ function Stream:gtick()
 	end
 end
 
--- Cache this stream value to avoid recalculation within
--- the same tick (ie. point in time). This may happen when
--- a stream is used multiple times in the same "patch".
--- FIXME: This should be done automatically by an optimizer stage.
--- FIXME: This is counter-productive for simple number streams
--- (anything simpler than a table lookup)
-function Stream:cache()
-	return CachedStream:new(self)
-end
-
-function Stream:rep(repeats)
-	return RepeatStream:new(self, repeats)
-end
-
-function Stream:map(fnc)
-	return MapStream:new(self, fnc)
-end
-Stream["\u{00A8}"] = Stream.map -- APL Double-Dot
-
 -- Register all unary functions from the math package
 -- as stream operations/methods (creates a stream that calls
 -- the function on every sample)
+-- FIXME: There is actually no need to do this using a loop anymore
+-- since we document every method individually anyway.
+
+--- Get absolute value of all samples
+-- @function abs
+-- @treturn Stream
+-- @see math.abs
+
+--- Get arc cosine of all samples (in radians)
+-- @function acos
+-- @treturn Stream
+-- @see math.acos
+
+--- Get the arc sine of all samples (in radians)
+-- @function asin
+-- @treturn Stream
+-- @see math.asin
+
+--- Get the arc tangent of all samples (in radians)
+-- @function atan
+-- @treturn Stream
+-- @see math.atan
+
+--- Get the smallest integer larger than or equal to all samples
+-- @function ceil
+-- @treturn Stream
+-- @see math.ceil
+
+--- Get the cosine of all samples (assumed to be in radians)
+-- @function cos
+-- @treturn Stream
+-- @see math.cos
+
+--- Get the hyperbolic cosine of all samples
+-- @function cosh
+-- @treturn Stream
+-- @see math.cosh
+
+--- Get the angle of all samples (given in radians) in degrees
+-- @function deg
+-- @treturn Stream
+-- @see math.deg
+
+--- Get the value e^^x for all samples
+-- @function exp
+-- @treturn Stream
+-- @see math.exp
+
+--- Get the largest integer smaller than or equal to all samples
+-- @function floor
+-- @treturn Stream
+-- @see math.floor
+
+--- Get the natural logarithm of all samples
+-- @function log
+-- @treturn Stream
+-- @see math.log
+
+--- Get the base-10 logarithm of all samples
+-- @function log10
+-- @treturn Stream
+-- @see math.log10
+
+--- Get the angle of all samples (given in degrees) in radians
+-- @function rad
+-- @treturn Stream
+-- @see math.rad
+
+--- Get the sine of all samples (assumed to be in radians).
+-- @function sin
+-- @treturn Stream
+-- @see math.sin
+
+--- Get the hyperbolic sine of all samples.
+-- @function sinh
+-- @treturn Stream
+-- @see math.sinh
+
+--- Get the square root of all samples.
+-- (You can also use the expression x^^0.5 to compute this value.)
+-- @function sqrt
+-- @treturn Stream
+-- @see math.sqrt
+
+--- Get the tangent of all samples (assumed to be in radians)
+-- @function tan
+-- @treturn Stream
+-- @see math.tan
+
+--- Get the hyperbolic tangent of all samples
+-- @function tanh
+-- @treturn Stream
+-- @see math.tanh
 for _, fnc in pairs{"abs", "acos", "asin", "atan",
                     "ceil", "cos", "cosh", "deg",
                     "exp", "floor", "log", "log10",
@@ -227,7 +358,21 @@ for _, fnc in pairs{"abs", "acos", "asin", "atan",
 	end
 end
 
+--
 -- Some binary functions from the math package
+--
+
+--- Returns the minimum value between two streams
+-- @function min
+-- @StreamableNumber v Serves as the right argument to @{math.min}.
+-- @treturn Stream
+-- @see ZipStream
+
+--- Returns the maximum value between two streams
+-- @function max
+-- @StreamableNumber v Serves as the right argument to @{math.max}.
+-- @treturn Stream
+-- @see ZipStream
 for _, name in pairs{"min", "max"} do
 	local fnc = math[name]
 
@@ -238,11 +383,64 @@ for _, name in pairs{"min", "max"} do
 	end
 end
 
+--
+-- Register all binary operators of the "bit" module
+--
+
+--- Get the bitwise **not** of all samples
+-- @treturn Stream
+-- @see bit.bnot
 function Stream:bnot()
 	return self:map(bit.bnot)
 end
 
--- Register all binary operators of the "bit" module
+--- Perform bitwise **or** between two streams
+-- @function bor
+-- @StreamableNumber v Serves as the right argument to @{bit.bor}.
+-- @treturn Stream
+-- @see ZipStream
+
+--- Perform bitwise **and** between two streams
+-- @function band
+-- @StreamableNumber v Serves as the right argument to @{bit.band}.
+-- @treturn Stream
+-- @see ZipStream
+
+--- Perform bitwise **xor** between two streams
+-- @function xor
+-- @StreamableNumber v Serves as the right argument to @{bit.xor}.
+-- @treturn Stream
+-- @see ZipStream
+
+--- Perform bitwise **logical left-shift** between two streams
+-- @function lshift
+-- @StreamableNumber v Serves as the right argument to @{bit.lshift}.
+-- @treturn Stream
+-- @see ZipStream
+
+--- Perform bitwise **logical right-shift** between two streams
+-- @function rshift
+-- @StreamableNumber v Serves as the right argument to @{bit.rshift}.
+-- @treturn Stream
+-- @see ZipStream
+
+--- Perform bitwise **arithmetic right-shift** between two streams
+-- @function arshift
+-- @StreamableNumber v Serves as the right argument to @{bit.arshift}.
+-- @treturn Stream
+-- @see ZipStream
+
+--- Perform bitwise **left rotation** between two streams
+-- @function rol
+-- @StreamableNumber v Serves as the right argument to @{bit.rol}.
+-- @treturn Stream
+-- @see ZipStream
+
+--- Perform bitwise **right rotation** between two streams
+-- @function ror
+-- @StreamableNumber v Serves as the right argument to @{bit.ror}.
+-- @treturn Stream
+-- @see ZipStream
 for _, name in pairs{"bor", "band", "bxor",
                      "lshift", "rshift", "arshift",
                      "rol", "ror"} do
@@ -255,6 +453,10 @@ for _, name in pairs{"bor", "band", "bxor",
 	end
 end
 
+--- Clip all samples between two values (between [-1,+1] by default).
+-- @StreamableNumber[opt=-1] min Serves as the lower bound
+-- @StreamableNumber[opt=+1] max Serves as the upper bound
+-- @treturn Stream
 function Stream:clip(min, max)
 	min = min or -1
 	max = max or 1
@@ -262,8 +464,11 @@ function Stream:clip(min, max)
 	return self:max(min):min(max)
 end
 
--- Scale [-1,+1] signal to [lower,upper]
--- lower is optional and defaults to 0
+--- Scale stream with values between [-1,+1] to [lower,upper]
+-- @StreamableNumber[opt=0] v1 Delivers the lower value.
+-- @StreamableNumber v2 Delivers the upper value
+-- @treturn Stream
+-- @fixme The API is not documentable easily.
 function Stream:scale(v1, v2)
 	local lower = v2 and v1 or 0
 	local upper = v2 or v1
@@ -277,31 +482,21 @@ function Stream:scale(v1, v2)
 	end
 end
 
-function Stream:scan(fnc)
-	return ScanStream:new(self, fnc)
-end
-
-function Stream:fold(fnc)
-	return FoldStream:new(self, fnc)
-end
-
-function Stream:zip(fnc, ...)
-	return ZipStream:new(fnc, self, ...)
-end
-
-function Stream:sub(i, j)
-	return SubStream:new(self, i, j)
-end
-
-function Stream:ravel()
-	return RavelStream:new(self)
-end
-
+--- Mix two streams
+-- @Stream other Other stream to mix in
+-- @StreamableNumber[opt=0.5] wetness
+--   Wetness factor between [0,1].
+--   This determines the loudness of the other stream.
+-- @treturn Stream
 function Stream:mix(other, wetness)
 	wetness = wetness or 0.5
 	return self*(1 - wetness) + other*wetness
 end
 
+--- Distribute mono-stream between two stereo channels
+-- @StreamableNumber[opt=0] location
+--   Provides the location (between [0,1]) of the source stream in the resulting stereo stream.
+-- @treturn MuxStream
 function Stream:pan(location)
 	location = location or 0
 	local cached = self:cache()
@@ -317,24 +512,15 @@ function Stream:pan(location)
 	end
 end
 
-function Stream:delay(length)
-	return DelayStream:new(self, length)
-end
-function Stream:delayx(length, max_length)
-	return DelayXStream:new(self, length, max_length)
-end
-
-function Stream:echo(length, wetness)
-	local cached = self:cache()
-	return cached:mix(cached:delay(length), wetness)
-end
-function Stream:echox(length, wetness, max_length)
-	local cached = self:cache()
-	return cached:mix(cached:delayx(length, max_length), wetness)
-end
-
--- This is a linear resampler thanks to the
--- semantics of IndexStream
+--- Resample stream.
+-- This is a linear resampler thanks to the semantics of IndexStream.
+-- @number factor
+--   The resampling factor.
+--   If lower than 1, the stream will be slowed.
+--   If higher than 1, it will be sped up.
+-- @treturn Stream
+-- @todo It would be useful if factor would be StreamableNumber.
+-- However the time in line() would consequently also have to be StreamableNumber.
 function Stream:resample(factor)
 	-- FIXME FIXME FIXME
 	-- self:len()-1 is a workaround for a mysterious bug in LuaJIT
@@ -352,7 +538,12 @@ end
 -- be useful for constant frequencies.
 --
 
--- Ramp from 0 to 1
+--- Create a ramp between [0,1] with the frequency taken from the source stream.
+-- It can also be invoked as a regular function to pass constant frequencies.
+-- @function Phasor
+-- @number[opt=0] phase The phase between [0,1].
+-- @treturn Stream
+-- @usage Stream.Phasor(440)
 function Stream.Phasor(freq, phase)
 	phase = phase or 0
 
@@ -361,7 +552,12 @@ function Stream.Phasor(freq, phase)
 	end)
 end
 
--- Saw tooth wave from -1 to 1
+--- Saw tooth wave between [-1,+1] with the frequency taken from the source stream.
+-- It can also be invoked as a regular function to pass constant frequencies.
+-- @function SawOsc
+-- @number[opt=0] phase The phase between [0,1].
+-- @treturn Stream
+-- @usage Stream.SawOsc(440)
 function Stream.SawOsc(freq, phase)
 	phase = (phase or 0)*2+1
 
@@ -370,24 +566,47 @@ function Stream.SawOsc(freq, phase)
 	end) - 1
 end
 
+--- Sinusiod wave between [-1,+1] with the frequency taken from the source stream.
+-- It can also be invoked as a regular function to pass constant frequencies.
+-- @function SinOsc
+-- @number[opt=0] phase The phase between [0,1].
+-- @treturn Stream
+-- @usage Stream.SinOsc(440)
 function Stream.SinOsc(freq, phase)
 	return Stream.Phasor(freq, phase):mul(2*math.pi):sin()
 end
 Stream["\u{25CB}"] = Stream.SinOsc -- APL Circle
 
--- Pulse between 0 and 1 in half a period (width = 0.5)
+--- Pulse between [0,1] with the frequency taken from the source stream.
+-- It can also be invoked as a regular function to pass constant frequencies.
+-- @function PulseOsc
+-- @number[opt=0] phase The phase between [0,1].
+-- @treturn Stream
+-- @usage Stream.PulseOsc(440)
 function Stream.PulseOsc(freq, phase)
 	return Stream.Phasor(freq, phase):map(function(x)
 		return x < 0.5 and 1 or 0
 	end)
 end
 
+--- Square wave between [-1,+1] with the frequency taken from the source stream.
+-- It can also be invoked as a regular function to pass constant frequencies.
+-- @function SqrOsc
+-- @number[opt=0] phase The phase between [0,1].
+-- @treturn Stream
+-- @usage Stream.SqrOsc(440)
 function Stream.SqrOsc(freq, phase)
 	return Stream.Phasor(freq, phase):map(function(x)
 		return x < 0.5 and 1 or -1
 	end)
 end
 
+--- Triangle wave between [-1,+1] with the frequency taken from the source stream.
+-- It can also be invoked as a regular function to pass constant frequencies.
+-- @function TriOsc
+-- @number[opt=0] phase The phase between [0,1].
+-- @treturn Stream
+-- @usage Stream.TriOsc(440)
 function Stream.TriOsc(freq, phase)
 	local abs = math.abs
 
@@ -396,7 +615,10 @@ function Stream.TriOsc(freq, phase)
 	end)
 end
 
--- Bit crusher effect
+--- Bit crusher effect.
+-- This reduces the bit depth of the source stream.
+-- @number[opt=8] bits The resulting streams bit depth.
+-- @treturn Stream
 function Stream:crush(bits)
 	bits = bits or 8
 	local floor = math.floor
@@ -406,19 +628,24 @@ function Stream:crush(bits)
 	end)
 end
 
--- The len() method is the main way to get a stream's
--- length (at least in this code) and classes should overwrite
--- this method.
--- The __len metamethod is also defined but it currently cannot
+--- Get a stream's length in samples.
+-- @treturn int Stream length in samples (@{math.huge} for infinite streams).
+-- @fixme __len metamethod is also defined but it currently cannot
 -- work since Lua 5.1 does not consider a table's metamethod when
 -- evaluating the length (#) operator.
+-- This however would work when building LuaJIT with -DLUAJIT_ENABLE_LUA52COMPAT
 function Stream:len()
 	return math.huge -- infinity
 end
 
+--- Send samples to the Jack output ports, ie. play the stream.
+-- This will block and can be interrupted by pressing Ctrl+C (SIGINT).
+-- @int[opt=1] first_port
+--   First Jack output port to use.
+--   The first stream in a multi-channel stream will go to this port,
+--   the next one to first_port+1 and so on.
 function Stream:play(first_port)
-	first_port = first_port or 1
-	first_port = first_port - 1
+	first_port = (first_port or 1) - 1
 
 	-- Make sure JIT compilation is turned on for the generator function
 	-- and all subfunctions.
@@ -469,16 +696,19 @@ function Stream:play(first_port)
 	end
 end
 
--- implemented in applause.c
-function Stream:fork()
-	error("C function not registered!")
-end
-
--- NOTE: This implementation is for single-channel streams
--- only. See also MuxStream:foreach()
+--- Execute function for each frame generated by the stream.
+-- This will process samples as fast as possible and may therefore
+-- not be well suited to process real-time input.
+-- @func fnc
+--   Function to execute.
+--   It gets passed an array of samples, one for each channel.
+-- @fixme This is not currently interruptable and therefore not suitable
+-- to be executed dynamically at the command-line.
 function Stream:foreach(fnc)
 	local clear = table.clear
 
+	-- NOTE: This implementation is for single-channel streams
+	-- only. See also MuxStream:foreach().
 	local frame = table.new(1, 0)
 	local tick = self:gtick()
 
@@ -489,6 +719,11 @@ function Stream:foreach(fnc)
 	end
 end
 
+--- Benchmark stream (time to generate all samples).
+-- This does not work for infinite streams.
+-- Naturally, this calculates samples as fast as possible
+-- and it does not make sense to benchmark streams with real-time input.
+-- @see benchmark
 function Stream:benchmark()
 	if self:len() == math.huge then
 		error("Cannot benchmark infinite stream")
@@ -499,15 +734,22 @@ function Stream:benchmark()
 	end)
 end
 
--- Dump bytecode of tick function.
--- FIXME: Return string instead
+--- Dump bytecode for stream (its tick function).
+-- See also the undocumented `jit.bc` module in LuaJIT.
+-- This does not return a string, so it can contain color output.
+-- @tparam[opt=io.stdout] file out File stream to print to (can also be a table of functions).
+-- @bool[opt=true] all Whether to dump all subfunctions as well.
 function Stream:jbc(out, all)
 	-- Load the utility library on-demand.
 	-- Its API is not stable according to luajit docs.
 	require("jit.bc").dump(self:gtick(), out, all)
 end
 
--- FIXME: Return string instead
+--- Dump bytecode, traces and machine code of stream (its tick function).
+-- See also the undocumented `jit.dump` module in LuaJIT.
+-- This does not return a string, so it can contain color output.
+-- @string[opt="tbim"] opt Output flags
+-- @tparam[opt=io.stdout] file outfile File stream to print to (can also be a table of functions).
 function Stream:jdump(opt, outfile)
 	local dump = require("jit.dump")
 	local tick = self:gtick()
@@ -532,9 +774,19 @@ function Stream:jdump(opt, outfile)
 	if err then error(err) end
 end
 
+--- Convert all values to Lua numbers
+-- @treturn Stream
+-- @see tonumber
 function Stream:tonumber() return self:map(tonumber) end
+--- Convert all values to Lua strings
+-- @treturn Stream
+-- @see tostring
 function Stream:tostring() return self:map(tostring) end
 
+--- Calculate all values of a stream and return them as Lua arrays/tables.
+-- This naturally does not work for infinite streams and the eagerly evaluated
+-- stream must not depend on real-time input (MIDI controllers etc).
+-- @return For multi-channel streams, every channel will be returned in its own return value.
 function Stream:totable()
 	if self:len() == math.huge then
 		error("Cannot serialize infinite stream")
@@ -558,14 +810,23 @@ function Stream:totable()
 	return unpack(channel_vectors)
 end
 
--- Effectively eager-evaluates the stream returning
--- an array-backed stream.
+--- Evaluate stream eagerly.
+-- This precalculates all values for non-infinite streams, which may be useful
+-- to lower CPU load during real-time playback.
+-- @treturn Stream
+-- @see Stream:totable
 function Stream:eval()
 	return MuxStream:new(self:totable())
 end
 
--- NOTE: This will only plot the stream's first channel
+--- Plot stream with numbers between [-1,+1] to ASCII graphics.
+-- @int[opt=25] rows Rows of the ASCII diagram.
+-- @int[opt=80] cols Columns of the ASCII diagram.
+-- @treturn string ASCII diagram formatted as a string.
+-- @usage =Stream.SinOsc(440):sub(1, samplerate/440):toplot()
+-- @warning This will only plot the stream's first channel
 function Stream:toplot(rows, cols)
+	-- @fixme Perhaps default to $ROWS and $COLUMNS?
 	rows = rows or 25
 	cols = cols or 80
 
@@ -605,6 +866,15 @@ function Stream:toplot(rows, cols)
 	return str
 end
 
+--- Pipe stream values to external program.
+-- This sends one frame per tick on their own line.
+-- Every line can contain multiple numbers separated by tabs depending on the number of channels.
+-- @string prog The program to launch and receive the stream data.
+-- @string[opt="full"] vbufmode Buffering mode.
+-- @int[opt] vbufsize The buffer size.
+-- @see file:setvbuf
+-- @fixme This is currently allowed for infinite streams as well,
+-- but there is no way to interrupt Stream:foreach().
 function Stream:pipe(prog, vbufmode, vbufsize)
 	local hnd = io.popen(prog, "w")
 	hnd:setvbuf(vbufmode or "full", vbufsize)
@@ -617,6 +887,10 @@ function Stream:pipe(prog, vbufmode, vbufsize)
 	hnd:close()
 end
 
+--- Plot stream using [gnuplot](http://www.gnuplot.info/).
+-- This is not allowed for infinite streams.
+-- @warning This requires the feedgnuplot script.
+-- @fixme gnuplot is not the ideal tool for plotting audio data.
 function Stream:gnuplot()
 	if self:len() == math.huge then
 		error("Cannot plot infinite stream")
@@ -640,29 +914,57 @@ function Stream:gnuplot()
 	hnd:close()
 end
 
-function Stream:mux(...)
-	return MuxStream:new(self, ...)
-end
+--- Check whether stream is an instance of a particular class.
+-- @function instanceof
+-- @tparam Class other_class The other object or class to check against.
+-- @treturn bool Whether the stream is an instance of other_class.
+-- @see DeriveClass
 
-function Stream:dupmux(channels)
-	return DupMux(self, channels)
-end
-
--- For single-channel streams only, see also MuxStream:demux()
-function Stream:demux(i, j)
-	j = j or i
-	assert(i == 1 and j == 1,
-	       "Invalid channel range specified (mono-channel stream)")
-	return self
-end
-
+--
 -- Stream metamethods
+--
 
--- NOTE: Currently non-functional since Lua 5.1 does not
--- consider metamethods when evaluating the length operator.
+--- Create new stream using the `()` operator (metamethod).
+-- This is equivalent to calling the @{Stream:new} method.
+-- @metamethod __call
+-- @local
+-- @treturn Stream
+-- @usage Stream(23)
+-- @see Stream:new
+-- @see DeriveClass
+
+--- Extract and interpolate samples using the `[]` operator (metamethod).
+-- @metamethod __index
+-- @StreamableNumber index
+--   The stream that will generate indices into the base stream.
+--   If these numbers have fractions, the output sample will be linearilly interpolated.
+--   The maximum number generated by this stream determines the memory requirements
+--   of the index operation, so this *should* never produce very large numbers or
+--   unboundedly growing numbers.
+-- @treturn Stream
+--   The resulting stream will have a the same length as the index-stream (`index:len()`).
+-- @usage SndfileStream("test.wav")[Stream.SinOsc(0.5):scale(1, sec(5))]
+-- @usage iota(2, 10)[{2, 5, 8}]
+-- @fixme This will only work for number streams at the moment.
+-- @fixme The memory requirements could be lifted by having a way to arbitrarily
+-- seek the streams. This however would complicate the design significantly.
+
+--- Get length of stream via `#` operator (metamethod).
+-- @metamethod __len
+-- @local
+-- @treturn int
+-- @see Stream:len
+-- @usage #tostream{1, 2, 3}
+-- @fixme Currently non-functional since Lua 5.1 does not
+-- consider metamethods when evaluating the length operator
+-- unless you compile with -DLUAJIT_ENABLE_LUA52COMPAT.
 function Stream:__len()	return self:len() end
 
--- NOTE: Will only convert the first channel
+--- Format stream as string (metamethod).
+-- This will only format the first channel and not more than 1024 samples.
+-- @metamethod __tostring
+-- @treturn string
+-- @usage tostring(tostream{1, 2, 3})
 function Stream:__tostring()
 	local stream = self:tostring()
 
@@ -677,7 +979,7 @@ end
 -- NOTE: These operators work with scalars and streams.
 -- The semantics of e.g. adding Stream(x) is compatible
 -- with a map that adds x. Maps are preferred since
--- they are (slightly).
+-- they are (slightly) faster.
 -- NOTE: Named addOp() and similar functions below
 -- are necessary instead of lambdas so consecutive
 -- operations can be collapsed by ZipStream (which
@@ -686,6 +988,13 @@ end
 do
 	local function addOp(x1, x2) return x1+x2 end
 
+	--- Add samples of two streams
+	-- This can be called as a Stream method or as an operator.
+	-- @StreamableNumber v1 Provides left values of the add operation.
+	-- @StreamableNumber v2 Provides right values of the add operation.
+	-- @treturn Stream
+	-- @usage tostream(23):add(5)
+	-- @usage tostream(23) + 5
 	function Stream.add(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x+v2 end) or
@@ -706,6 +1015,13 @@ do
 	--
 	--local function subOp(x1, x2) return x1-x2 end
 
+	--- Subtract samples of two streams
+	-- This can be called as a Stream method or as an operator.
+	-- @StreamableNumber v1 Provides left values of the subtraction operation.
+	-- @StreamableNumber v2 Provides right values of the subtraction operation.
+	-- @treturn Stream
+	-- @usage tostream(23):minus(5)
+	-- @usage tostream(23) - 5
 	function Stream.minus(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x-v2 end) or
@@ -717,11 +1033,23 @@ end
 do
 	local function mulOp(x1, x2) return x1*x2 end
 
+	--- Multiply samples of two streams
+	-- This can be called as a Stream method or as an operator.
+	-- @StreamableNumber v1 Provides left values of the multiplication operation.
+	-- @StreamableNumber v2 Provides right values of the multiplication operation.
+	-- @treturn Stream
+	-- @usage tostream(23):mul(5)
+	-- @usage tostream(23) * 5
 	function Stream.mul(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x*v2 end) or
 		       ZipStream:new(mulOp, v1, v2)
 	end
+	--- Change volume (gain) of stream.
+	-- This is an alias of @{Stream.mul}.
+	-- @function gain
+	-- @StreamableNumber volume The volume of the resulting stream.
+	-- @treturn Stream
 	Stream.gain = Stream.mul
 	Stream["\u{00D7}"] = Stream.mul -- APL Multiply/Signum
 	Stream.__mul = Stream.mul
@@ -731,6 +1059,13 @@ do
 	-- FIXME: See above minus()
 	--local function divOp(x1, x2) return x1/x2 end
 
+	--- Divide samples of two streams
+	-- This can be called as a Stream method or as an operator.
+	-- @StreamableNumber v1 Provides left values of the division operation.
+	-- @StreamableNumber v2 Provides right values of the division operation.
+	-- @treturn Stream
+	-- @usage tostream(23):div(5)
+	-- @usage tostream(23) / 5
 	function Stream.div(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x/v2 end) or
@@ -744,6 +1079,13 @@ do
 	-- FIXME: See above minus()
 	--local function modOp(x1, x2) return x1%x2 end
 
+	--- Calculate modulus of two streams
+	-- This can be called as a Stream method or as an operator.
+	-- @StreamableNumber v1 Provides left values of the modulo operation.
+	-- @StreamableNumber v2 Provides right values of the modulo operation.
+	-- @treturn Stream
+	-- @usage tostream(23):mod(5)
+	-- @usage tostream(23) % 5
 	function Stream.mod(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x%v2 end) or
@@ -756,6 +1098,13 @@ do
 	-- FIXME: See above minus()
 	--local function powOp(x1, x2) return x1^x2 end
 
+	--- Take one stream to the power of another stream.
+	-- This can be called as a Stream method or as an operator.
+	-- @StreamableNumber v1 Provides left values of the power operation.
+	-- @StreamableNumber v2 Provides right values of the power operation.
+	-- @treturn Stream
+	-- @usage tostream(23):pow(5)
+	-- @usage tostream(23)^5
 	function Stream.pow(v1, v2)
 		return type(v2) == "number" and
 		       MapStream:new(v1, function(x) return x^v2 end) or
@@ -765,11 +1114,11 @@ do
 	Stream.__pow = Stream.pow
 end
 
+--- Negate all samples of stream via `-` operator (metamethod)
+-- @metamethod __unm
+-- @treturn Stream
+-- @usage -tostream(23)
 function Stream:__unm() return self * -1 end
-
-function Stream.__concat(op1, op2)
-	return ConcatStream:new(op1, op2)
-end
 
 -- FIXME: Length comparisions can already be written
 -- elegantly - perhaps these operators should have
@@ -777,16 +1126,50 @@ end
 -- However Lua practically demands these metamethods
 -- (as well as __eq) to return booleans.
 
-function Stream.__lt(op1, op2)
-	return op1:len() < op2:len()
-end
+--- Check whether one stream is short than second via `<` operator (metamethod)
+-- @metamethod __lt
+-- @Stream op1 Left stream
+-- @Stream op2 Right stream
+-- @treturn bool
+-- @usage tostream{1, 2, 3} < tostream(23)
+function Stream.__lt(op1, op2) return op1:len() < op2:len() end
 
-function Stream.__le(op1, op2)
-	return op1:len() <= op2:len()
-end
+--- Check whether one stream is short than or equal to second via `<=` operator (metamethod)
+-- @metamethod __le
+-- @Stream op1 Left stream
+-- @Stream op2 Right stream
+-- @treturn bool
+-- @usage tostream{1, 2, 3} <= tostream(23)
+function Stream.__le(op1, op2) return op1:len() <= op2:len() end
 
+--- Concatenate two streams via `..` operator (metamethod)
+-- @metamethod __concat
+-- @StreamableNumber op1 First stream
+-- @StreamableNumber op2 Second stream
+-- @treturn Stream
+-- @see ConcatStream:new
+-- @usage tostream{1, 2, 3}..23
+function Stream.__concat(op1, op2) return ConcatStream:new(op1, op2) end
+
+--- Class for muxing multiple streams into a multi-channel stream.
+-- @type MuxStream
 MuxStream = DeriveClass(Stream)
 
+--- Create new MuxStream, ie combine multiple streams given as parameters into a single multi-channel stream.
+-- The individual parameters can also be scalars and tables converted via @{tostream}.
+-- The individual streams can both be a plain single-channel @{Stream}s or MuxStreams with an arbitrary number of channels.
+-- The resulting stream's number of channels is the sum of all constituent streams' channels.
+-- @function new
+-- @param ... Streams to mux
+-- @treturn MuxStream
+-- @see Stream:mux
+-- @see tostream
+-- @see Stream:totable
+-- @usage MuxStream(Stream.SinOsc(440), Stream.SinOsc(880)):play()
+-- @fixme This could actually be hidden (@local) from end users.
+-- The only advantage over Stream:mux is that it is more elegant when creating from
+-- constants.
+-- We could however use Stream.mux(...) as well and it would work exactly like MuxStream:new().
 function MuxStream:ctor(...)
 	self.streams = {}
 	for k, stream in ipairs{...} do
@@ -818,6 +1201,21 @@ end
 function MuxStream:len()
 	-- All channel streams have the same length
 	return self.streams[1]:len()
+end
+
+--- Extract one or more channels
+-- @within Class Stream
+-- @int i Id of first channel to extract.
+-- @int[opt=i] j
+--   Id of last channel to extract.
+--   If omitted, only one channel (i) is extracted.
+-- @treturn Stream|MuxStream
+function Stream:demux(i, j)
+	j = j or i
+	-- For single-channel streams only, see also MuxStream:demux()
+	assert(i == 1 and j == 1,
+	       "Invalid channel range specified (mono-channel stream)")
+	return self
 end
 
 -- Overrides Stream:demux()
@@ -861,8 +1259,24 @@ function MuxStream:foreach(fnc)
 	end
 end
 
--- FIXME: This should perhaps be a class
-function DupMux(stream, channels)
+--- Mux several streams with the source stream into a multi-channel stream.
+-- @within Class Stream
+-- @param ... Streams to mux
+-- @treturn MuxStream
+-- @see MuxStream:new
+-- @usage Stream.SinOsc(440):mux(Stream.SinOsc(880)):play()
+function Stream:mux(...)
+	return MuxStream:new(self, ...)
+end
+
+--- Duplicate channel in single-channel stream (or suitable scalar value).
+-- This can be called as a function or method.
+-- @within Class Stream
+-- @StreamableNumber stream Source of single channel data.
+-- @int[opt=2] channels Number of channels of resulting stream.
+-- @treturn MuxStream
+-- @see MuxStream:new
+function Stream.dupmux(stream, channels)
 	channels = channels or 2
 
 	local cached = tostream(stream):cache()
@@ -875,14 +1289,24 @@ function DupMux(stream, channels)
 	return MuxStream:new(unpack(streams))
 end
 
--- Base class for all streams that operate on arbitrary numbers
--- of other streams. Handles muxing opaquely.
+--- Base class for all streams that operate on multi-channel streams.
+-- It handles muxing opaquely, by applying the tick() function on every
+-- channel individually.
+-- This allows writing multi-channel-capable Streams without complicating
+-- things with having to handle frames etc.
+-- This class is **abstract**, you are only supposed to derive from it,
+-- not to instantiate it directly.
+-- @type MuxableStream
+-- @see DeriveClass
 MuxableStream = DeriveClass(Stream)
 
--- Describes the part of the muxableCtor's signature
--- containing muxable streams.
--- By default all arguments are muxable streams.
+--- The first muxable stream in @{MuxableStream:muxableCtor}'s signature.
+-- If negative, this refers to an argument at the end of the parameter list.
+-- This is 1 (first argument) by default.
 MuxableStream.sig_first_stream = 1
+--- The last muxable stream in @{MuxableStream:muxableCtor}'s signature.
+-- If negative, this refers to an argument at the end of the parameter list.
+-- This is -1 (last argument) by default.
 MuxableStream.sig_last_stream = -1
 
 function MuxableStream:ctor(...)
@@ -936,6 +1360,24 @@ function MuxableStream:ctor(...)
 	return MuxStream:new(unpack(channel_streams))
 end
 
+--- Constructor for classes derived form @{MuxableStream}.
+-- This is an **abstract** method, you **must** implement it in your subclass.
+-- @function muxableCtor
+-- @param ...
+--   The arguments passed on from the @{Stream:new} method.
+--   All arguments between @{MuxableStream.sig_first_stream} and
+--   @{MuxableStream.sig_last_stream} are automatically converted
+--   to Streams and demuxed (see @{Stream:demux}), so you will only
+--   get passed plain single-channel streams.
+-- @treturn ?Stream
+--   You can optionally return a @{Stream} instance to competely replace the object table.
+--   If given, this value will be returned by the @{Stream:new} method instead.
+-- @see Stream:ctor
+
+--- Class for caching streams.
+-- Cached streams are calculated only once per tick.
+-- @type CachedStream
+-- @local
 CachedStream = DeriveClass(MuxableStream)
 
 function CachedStream:muxableCtor(stream)
@@ -959,6 +1401,21 @@ function CachedStream:len()
 	return self.stream:len()
 end
 
+--- Cache this stream value to avoid recalculation within
+-- the same tick (ie. point in time).
+-- This may happen when a stream is used multiple times in the same "patch".
+-- @within Class Stream
+-- @treturn Stream
+-- @todo This could be done automatically by an optimizer stage.
+-- @fixme This is counter-productive for simple number streams
+-- (anything simpler than a table lookup).
+function Stream:cache()
+	return CachedStream:new(self)
+end
+
+--- Class for streams based on vectors (arrays).
+-- @type VectorStream
+-- @local
 VectorStream = DeriveClass(Stream)
 
 -- NOTE: This is mono-streams only, the inverse of Stream:totable()
@@ -981,8 +1438,21 @@ function VectorStream:len()
 	return #self.vector
 end
 
+--- Class for creating streams consisting of multiple concatenated base streams.
+-- @type ConcatStream
+-- @fixme The only advantage of using ConcatStream:new instead of the `..` operator
+-- is that you do not need braces to apply other Stream methods.
+-- This could be circumvented by introducing a Stream:append() method.
+-- In this case, ConcatStream could be @local.
 ConcatStream = DeriveClass(MuxableStream)
 
+--- Create new ConcatStream, ie concatenation of serveral streams.
+-- @function new
+-- @param ...
+--   Individual @{Stream}s (or numbers or tables, that can be converted to streams).
+--   All but the last one must not be infinite.
+-- @treturn ConcatStream
+-- @see Stream.__concat
 function ConcatStream:muxableCtor(...)
 	self.streams = {}
 	for _, v in ipairs{...} do
@@ -1066,9 +1536,16 @@ function RepeatStream:gtick()
 
 			-- next iteration
 			i = i + 1
-			-- FIXME: The tick() method itself may be too
+			-- @fixme The Stream:gtick() method itself may be too
 			-- inefficient for realtime purposes.
 			-- Also, we may slowly leak memory.
+			-- It would be possible to precalculate the tick functions,
+			-- but that wouldn't work for infinite repeats.
+			-- This could be circumvented by supporting an optional reset function
+			-- returned by Stream:gtick.
+			-- This however would complicate all higher-order streams.
+			-- Another solution would be a two-stage Stream:gtick which allows real-time
+			-- safe gticking.
 			tick = stream:gtick()
 		end
 	end
@@ -1076,6 +1553,15 @@ end
 
 function RepeatStream:len()
 	return self.stream:len() * self.repeats
+end
+
+--- Repeat stream. After the stream runs out of samples, it will start all over again.
+-- @within Class Stream
+-- @int[opt] repeats Number of repeats. If missing, the stream will be repeated indefinitely.
+-- @treturn Stream
+-- @fixme See restrictions of RepeatStream:gtick and Stream:gtick.
+function Stream:rep(repeats)
+	return RepeatStream:new(self, repeats)
 end
 
 -- Ravel operation inspired by APL.
@@ -1107,6 +1593,7 @@ function RavelStream:gtick()
 			-- NOTE: We don't use instanceof() here for performance
 			-- reasons
 			if type(value) == "table" and value.is_a_stream then
+				-- @fixme This is not real-time safe!
 				current_tick = value:gtick()
 			else
 				return value
@@ -1132,6 +1619,15 @@ function RavelStream:len()
 	end
 
 	return len
+end
+
+--- Ravel stream.
+-- This takes a stream of streams and concatenates them.
+-- @within Class Stream
+-- @treturn Stream
+-- @usage tostream{Stream.SinOsc(440):sub(1, sec()), Stream.SinOsc(880):sub(1, sec())}:ravel():play()
+function Stream:ravel()
+	return RavelStream:new(self)
 end
 
 IotaStream = DeriveClass(Stream)
@@ -1166,12 +1662,28 @@ function IotaStream:len()
 	       self.to - self.from + 1
 end
 
--- i and j have the same semantics as in string.sub()
+---
+--- @section end
+---
+
+--- Generate sequences of integers between [v1,v2].
+-- @function iota
+-- @int[opt=1] v1
+--   If this is the only argument, the lower bound is 1 and v1 specifies the upper bound.
+--   So without arguments, an infinite sequence of integers beginning with 1 will be generated.
+-- @int[opt=math.huge] v2 If a second argument is specified, v1 is the lower bound and v2 the upper bound.
+-- @treturn Stream
+-- @usage iota(23)
+-- @usage iota(1, 23)
+iota = IotaStream
+_G["\u{2373}"] = iota -- APL Iota
+
 SubStream = DeriveClass(MuxableStream)
 
 -- We have trailing non-stream arguments
 SubStream.sig_last_stream = 1
 
+-- i and j have the same semantics as in string.sub()
 function SubStream:muxableCtor(stream, i, j)
 	self.stream = stream
 	self.i = i
@@ -1191,8 +1703,13 @@ end
 function SubStream:gtick()
 	local tick = self.stream:gtick()
 
-	-- OPTIMIZE: Perhaps ask stream to skip the first
-	-- self.i-1 samples
+	-- @fixme There is room for optimization.
+	-- Perhaps ask stream to skip the first self.i-1 samples
+	-- Either gtick() could take an argument or introduce an
+	-- overwritable gtick_seek(). Problem as always is that
+	-- this would have to chain to substreams.
+	-- Perhaps, it would be wiser to let this be handled by
+	-- an optimizer stage that resolves Stream:sub-calls.
 	for _ = 1, self.i-1 do tick() end
 
 	local i = self.i
@@ -1209,7 +1726,26 @@ function SubStream:len()
 	       self.j - self.i + 1
 end
 
--- FIXME: Will not work for non-samlpe streams
+--- Get substream (restrict stream in length).
+-- This both allows discarding samples at the beginning and restricting the length
+-- (even of infinite streams).
+-- The semantics of the parameters are similar to @{string.sub}.
+-- @within Class Stream
+-- @int i
+--   Start sample (1 is the first sample).
+--   It may be negative to specify positions from the end, whereas -1 refers to the last sample.
+-- @int[opt=-1] j
+--   The last sample to include in the resulting stream.
+--   It can also be negative to refer to samples at the end of the stream.
+-- @treturn Stream
+-- @see sec
+-- @see msec
+-- @usage Stream.SinOsc(440):sub(1, sec()):play()
+function Stream:sub(i, j)
+	return SubStream:new(self, i, j)
+end
+
+-- @fixme Will not work for non-sample streams
 -- This should be split into a generic (index) and
 -- sample-only (interpolate) operation
 IndexStream = DeriveClass(MuxableStream)
@@ -1286,6 +1822,16 @@ function MapStream:len()
 	return self.stream:len()
 end
 
+--- Map function to every sample of stream
+-- @within Class Stream
+-- @func fnc Function to apply to every sample.
+-- @treturn Stream
+-- @usage Stream.Phasor(440):mul(2*math.pi):map(math.sin)
+function Stream:map(fnc)
+	return MapStream:new(self, fnc)
+end
+Stream["\u{00A8}"] = Stream.map -- APL Double-Dot
+
 ScanStream = DeriveClass(MuxableStream)
 
 -- We have trailing non-stream arguments
@@ -1314,12 +1860,28 @@ function ScanStream:len()
 	return self.stream:len()
 end
 
+--- Scan stream with function.
+-- Every function call will receive the last and current sample,
+-- so it is possible to "accumulate" values.
+-- @within Class Stream
+-- @func fnc
+--   The function that gets called with the last and current sample to determine the output sample.
+-- @treturn Stream
+-- @usage =iota(10):scan(function(last, sample) return last+sample end)
+function Stream:scan(fnc)
+	return ScanStream:new(self, fnc)
+end
+
 FoldStream = DeriveClass(MuxableStream)
 
 -- We have trailing non-stream arguments
 FoldStream.sig_last_stream = 1
 
 function FoldStream:muxableCtor(stream, fnc)
+	if stream:len() == math.huge then
+		error("An infinite stream cannot be folded!")
+	end
+
 	self.stream = stream
 	self.fnc = fnc
 end
@@ -1346,11 +1908,26 @@ function FoldStream:len()
 	return self.stream:len() > 0 and 1 or 0
 end
 
+--- Fold stream by calling function between all samples.
+-- This will pass the current sample as the *right* argument and the last returned
+-- value as the *left* argument.
+-- In other words, it is similar to `fnc(fnc(fnc(sample[1], sample[2]), sample[3]), ...)`.
+-- This naturally cannot work on infinite streams.
+-- @within Class Stream
+-- @func fnc Function that gets called with the *left* and *right* arguments.
+-- @treturn Stream The returned stream has either length 0 or 1.
+-- @usage =iota(10):fold(function(last, sample) return last+sample end)
+function Stream:fold(fnc)
+	return FoldStream:new(self, fnc)
+end
+
+---
 -- ZipStream combines any number of streams into a single
--- stream using a function. This is the basis of the "+"
--- and "*" operations.
+-- stream using a function.
+-- This is the basis of the `+` and `*` stream operations.
+-- @type ZipStream
 --
--- NOTE (FIXME?): This "inlines" ZipStream arguments with
+-- @fixme This "inlines" ZipStream arguments with
 -- the same function as an optimization. This ONLY WORKS
 -- for associative operations and more than 3 operands are
 -- probably slower than two ZipStreams except for very large
@@ -1361,6 +1938,15 @@ ZipStream = DeriveClass(MuxableStream)
 -- We have a leading non-stream argument
 ZipStream.sig_first_stream = 2
 
+--- Create a ZipStream.
+-- This is a stream that combines two or more substituent streams by
+-- applying a function between each of their samples.
+-- @function new
+-- @func fnc Function to apply between samples.
+-- @param ... Streams to combine.
+-- @treturn ZipStream
+-- @see Stream:zip
+-- @usage ZipStream(function(l, r) return l+r end), Stream.SinOsc(440):gain(0.5), Stream.SinOsc(880):gain(0.5))
 function ZipStream:muxableCtor(fnc, ...)
 	self.fnc = fnc
 
@@ -1405,7 +1991,7 @@ function ZipStream:gtick()
 	else
 		-- NOTE: Unfortunately, functions in the
 		-- ticks array cannot be inlined
-		local ticks = {}
+		local ticks = table.new(#self.streams, 0)
 		for i = 1, #self.streams do
 			ticks[i] = self.streams[i]:gtick()
 		end
@@ -1431,7 +2017,25 @@ function ZipStream:len()
 	return self.streams[1]:len()
 end
 
+--- Zip stream with one or more other streams.
+-- @within Class Stream
+-- @func fnc Function to apply between samples.
+-- @param ... Streams to zip with the calling stream.
+-- @see ZipStream:new
+function Stream:zip(fnc, ...)
+	return ZipStream:new(fnc, self, ...)
+end
+
+--- A stream generating random values (noise) between [-1,1].
+-- Since it does not have parameters, you don't necessarily have to instantiate it.
+-- The class table itself is a valid stream object.
+-- @type NoiseStream
+-- @usage NoiseStream:play()
 NoiseStream = DeriveClass(Stream)
+
+--- Create new NoiseStream
+-- @function new
+-- @treturn NoiseStream
 
 function NoiseStream:gtick()
 	local random = math.random
@@ -1441,16 +2045,34 @@ function NoiseStream:gtick()
 	end
 end
 
--- NOTE: Adapted from the algorithm used here:
--- http://vellocet.com/dsp/noise/VRand.html
+---
+--- @section end
+---
+
+--- Create a brown noise stream.
+-- @treturn Stream
+-- @see NoiseStream
+-- @fixme This is inconsistent. Perhaps we should define a BrownNoiseStream itself.
 function BrownNoise()
+	-- NOTE: Adapted from the algorithm used here:
+	-- http://vellocet.com/dsp/noise/VRand.html
 	return NoiseStream():scan(function(brown, white)
 		brown = (brown or 0) + white
 		return (brown < -8 or brown > 8) and brown - white or brown
 	end) * 0.0625
 end
 
+--- Stream generating pink noise.
+-- Since it does not have parameters, you don't necessarily have to instantiate it.
+-- The class table itself is a valid stream object.
+-- @type PinkNoiseStream
+-- @see NoiseStream
+-- @usage PinkNoiseStream:play()
 PinkNoiseStream = DeriveClass(Stream)
+
+--- Create new NoiseStream
+-- @function new
+-- @treturn PinkNoiseStream
 
 -- NOTE: Adapted from the algorithm used here:
 -- http://vellocet.com/dsp/noise/VRand.html
@@ -1501,9 +2123,6 @@ end
 
 --
 -- Delay Lines
--- NOTE: Echoing could be implemented here as well since
--- delay lines are only an application of echoing with a wetness of 1.0.
--- However this complicates matters because we have to handle nil.
 --
 
 DelayStream = DeriveClass(MuxableStream)
@@ -1534,6 +2153,29 @@ end
 
 function DelayStream:len()
 	return self.length + self.stream:len()
+end
+
+--- Delay stream by buffering (delay line).
+-- This is different to prepending a `Stream(0):sub(1, length)` in that it can be used to
+-- produce feedback lines and delay real-time input.
+-- @within Class Stream
+-- @int length Length of delay line in samples.
+-- @treturn Stream
+function Stream:delay(length)
+	return DelayStream:new(self, length)
+end
+
+--- Add echo to stream.
+-- @within Class Stream
+-- @int length How much to delay the echo.
+-- @StreamableNumber[opt=0.5] wetness
+--   Wetness/loadness of the echo (between [0,1]).
+-- @treturn Stream
+-- @see Stream:delay
+-- @usage SndfileStream("voice.wav"):echo(msec(200)):play()
+function Stream:echo(length, wetness)
+	local cached = self:cache()
+	return cached:mix(cached:delay(length), wetness)
 end
 
 --
@@ -1578,10 +2220,47 @@ function DelayXStream:len()
 	return self.max_length + self.stream:len()
 end
 
+--- Delay line with variable length.
+-- @within Class Stream
+-- @StreamableNumber length Stream generating the echo length.
+-- @int[opt=sec()] max_length Maximum length of the delay line.
+-- @see Stream:delay
+-- @fixme This is probably broken.
+-- @fixme It may be possible to merge this into Stream:delay.
+function Stream:delayx(length, max_length)
+	return DelayXStream:new(self, length, max_length)
+end
+
+--- Echo with variable delay.
+-- @within Class Stream
+-- @StreamableNumber length Stream generating the echo delay.
+-- @StreamableNumber[opt=0.5] wetness
+--   Wetness/loadness of the echo (between [0,1]).
+-- @int[opt=sec()] max_length Maximum length of the delay line.
+-- @see Stream:delay
+-- @fixme This is probably broken.
+-- @fixme It may be possible to merge this into Stream:delay.
+function Stream:echox(length, wetness, max_length)
+	local cached = self:cache()
+	return cached:mix(cached:delayx(length, max_length), wetness)
+end
+
+---
+--- @section end
+---
+
 --
 -- Primitives
 --
 
+--- Convert value to @{Stream}.
+-- Streams are returned unchanged.
+-- A table/array will be converted to a stream, that produces all of its elements consecutively.
+-- All other Lua values are generated infinitely.
+-- @param v Value to convert.
+-- @treturn Stream
+-- @usage tostream(440):SinOsc():play()
+-- @usage tostream{"A4", "B4", "C4"}:mtof()
 function tostream(v)
 	if type(v) == "table" then
 		if v.is_a_stream then return v end
@@ -1592,17 +2271,34 @@ function tostream(v)
 	end
 end
 
-function iota(...) return IotaStream:new(...) end
-_G["\u{2373}"] = iota -- APL Iota
-
+--- Generate a linear line segment.
+-- It will start with v1 and linearilly slide to v2 in the given time.
+-- @StreamableNumber v1 Start value.
+-- @int t Duration of the value change in samples.
+-- @StreamableNumber v2 End value.
+-- @treturn Stream The resulting stream will have length t.
+-- @usage Stream.SinOsc(440):gain(line(0, sec(5), 1)):play()
 function line(v1, t, v2)
 	return iota(t) * ((v2-v1)/t) + v1
 end
 
--- Derived from RTcmix' "curve" table
--- Generates a single linear or logarithmic line segment
--- See http://www.music.columbia.edu/cmc/Rtcmix/docs/scorefile/maketable.html#curve
+--- Generates a single linear or logarithmic line segment.
+-- It will start at v1 and logarithmically slide to v2 in the given time.
+-- @number v1 Start value.
+-- @number alpha
+--   Line curvature.
+--   A value of nil or 0, creates a straight line.
+--   If smaller than 0, makes a logarithmic (convex) curve; larger negative values make "sharper" curves.
+--   If larger than 0, makes a logarithmic (concave) curve; larger values make "sharper" curves.
+-- @int t Duration of the value change in samples.
+-- @number[opt=0] v2 End value.
+-- @treturn Stream The resulting stream will have length t.
+-- @see line
+-- @usage Stream.SinOsc(440):gain(curve(0, -1, sec(5), 1)):play()
+-- @fixme Could v1 and v2 be StreamableNumbers?
 function curve(v1, alpha, t, v2)
+	-- Derived from RTcmix' "curve" table
+	-- See http://www.music.columbia.edu/cmc/Rtcmix/docs/scorefile/maketable.html#curve
 	v2 = v2 or 0
 	if not alpha or alpha == 0 then return line(v1, t, v2) end
 
@@ -1615,8 +2311,15 @@ function curve(v1, alpha, t, v2)
 	end)
 end
 
--- Generates a variable number of concatenated line segments
--- E.g. curves(0, 0, sec(1), 1, 0, sec(1), 0)
+--- Generates a variable number of concatenated line segments.
+-- @number v1 Start value.
+-- @number alpha Line curvature.
+-- @int t Duration of the value change in samples.
+-- @number v2 End value.
+-- @param ... There can be more line segments starting with v2.
+-- @treturn Stream
+-- @see curve
+-- @usage Stream.SinOsc(440):gain(curves(0, 0, sec(1), 1, 0, sec(1), 0)):play()
 function curves(...)
 	local args = {...}
 	local ret
@@ -1630,6 +2333,8 @@ end
 --
 -- Jack client abstractions. This passes low level signals
 -- and works only with clients created via Stream.fork()
+--
+-- @fixme This is currently broken.
 --
 
 cdef_safe[[
@@ -1655,6 +2360,11 @@ function Client:kill()
 end
 
 Client.__gc = Client.kill
+
+-- implemented in applause.c
+function Stream:fork()
+	error("C function not registered!")
+end
 
 --
 -- Additional modules are loaded with dofile(),
