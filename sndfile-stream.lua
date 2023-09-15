@@ -52,6 +52,7 @@ function SndfileStream:gtick()
 	-- read pointer which is important when reusing the stream.
 	-- NOTE: We could do this with a single handle per object but
 	-- by maintaining our own read position and seeking before reading.
+	-- @fixme On the downside, this gtick() is not real-time safe.
 	local handle = sndfile:new(self.filename, "SFM_READ",
 	                           self.samplerate, self.channel_no, self.format)
 

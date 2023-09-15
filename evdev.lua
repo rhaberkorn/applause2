@@ -62,10 +62,12 @@ EvdevStream = DeriveClass(Stream)
 -- @treturn EvdevStream
 --   A stream of C structures, describing the event in detail.
 --   Its fields will be 0 if no event ocurred.
--- @todo Document the C structure as a Lua table.
 -- @see Stream:evrel
 -- @see Stream:evabs
 -- @see Stream:evkey
+-- @todo Document the C structure as a Lua table.
+-- @todo We could introduce something like EvdevStream.list() to get at least some
+-- introspection without having to call evtest.
 function EvdevStream:ctor(id, grab)
 	local grab = grab == nil or grab
 
@@ -158,6 +160,7 @@ end
 -- @fixme min and max can be read from the properties of the corresponding code.
 -- This would however require us to do all postprocessing already in EvdevStream:gtick()
 -- or even in applause_evdev_new().
+-- Or simply overwrite this function in EvdevStream as an optimization.
 function Stream:evabs(code, min, max)
 	code = ffi.cast("enum applause_evdev_abs", code)
 

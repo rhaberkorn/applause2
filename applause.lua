@@ -90,7 +90,7 @@ end
 samplerate = 44100
 
 --- Convert seconds to sample numbers
--- These are functions, so we can round the result
+-- These are functions, so we can round the result.
 -- automatically.
 -- @number[opt=1] x Number of seconds
 -- @treturn int Number of samples
@@ -1709,7 +1709,9 @@ function SubStream:gtick()
 	-- overwritable gtick_seek(). Problem as always is that
 	-- this would have to chain to substreams.
 	-- Perhaps, it would be wiser to let this be handled by
-	-- an optimizer stage that resolves Stream:sub-calls.
+	-- an optimizer stage that resolves Stream:sub()-calls.
+	-- @fixme Actually, this is plain wrong and does not work
+	-- if self.stream is cached.
 	for _ = 1, self.i-1 do tick() end
 
 	local i = self.i

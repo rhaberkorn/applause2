@@ -3,14 +3,9 @@
 * Stream:foreach() cannot be interrupted
   Perhaps C core should export an interrupted variable that we can check from Lua.
   For Stream:play() this is solved differently.
-* Stream:gtick() is not real-time safe but called from tick functions currently.
-  This could be resolved by letting gtick() return an initializer function and only
-  this initializer function will return the tick function.
-  Streams could implement a get_tick_init() method and Stream:gtick() would continue
-  to exist as a shortcut.
-* EvdevStream("TrackPoint"):evrel('REL_X'):scale(440,880):SinOsc():play()
-  Afterwards even Stream.SinOsc(880):play() will stutter.
-  However, this seems to happen only with the builtin speakers and with other programs as well.
+* SndfileStream(...):sub(...) does not work for multi-channel audio files.
+  The reason is that SubStream ticks in gtick() to seek in the source stream
+  which cannot work in cached streams (SndfileStream:ctor() caches for multi-channel streams).
 
 # Features
 
@@ -26,22 +21,29 @@
 * Multi-core support via GStreamer-like queue:
   https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-queue.html
 * Stream optimizer
-  * Automatic caching (finding identical subtrees)
+  * Automatic caching (finding identical subtrees).
+  * Removing contraproductive caching, e.g. after plain number streams, MIDIStream, EvdevStream...
   * Automatic paralellization
   * Automatic eager evaluation of small Streams independant of real-time input.
-  * Resolving Stream:sub() by alternative means, e.g. specifying an osciallator phase or
-    passing in a seek to a SndfileStream.
+  * Moving Stream:evabs() and Stream:sub() closer down the source, so we can make
+    use of per-class optimizations.
   * ...
+* Allow stringified timestamps everywhere, where we currently accept lengths in samples. tosamples()?
 * Github pages (LDoc documentation).
   They can be automatically pushed by a Github action.
   Since they will always be public, copyright questions should be resolved first.
 
 # Improvements
 
-* add optional Stream:gtickCtx() (or Stream:get_tick_init()) containing potentially real-time unsafe code.
-  Higher-order streams call Stream:gtickCtx() for all dependant streams only
-  once in their own gtickCtx() function.
-  This will allow gtick() to be called in tick-functions (that must be real-time safe).
+* Stream:gtick() is currently not real-time safe but called from tick functions
+  (either to reset the stream or to start is whenever this cannot be prepared for in the parent gtick()).
+  This is especially a problem for SndfileStream.
+  We must somehow avoid all costly operations in gtick(), doing them in ctor() instead.
+  Furthermore, we could theoretically avoid table lookups in gtick() by binding
+  Stream attributes to local variables.
+  This could be achieved most easily by assigning self.gtick to a lambda in ctor().
+  Furthermore, tick() functions should always cache self.gtick, so as to avoid
+  table lookups.
 * It could be useful to pass a timestamp (in samples) into the tick function.
   This will simplify some calculations and allows resetting a stream elegantly (for instance in RepeatStream).
   It will also speed up seeks, as in SubStream.
@@ -63,3 +65,6 @@
   The reduced accuracy shouldn't hurt us much.
 * Allow building LuaJIT with -DLUAJIT_ENABLE_LUA52COMPAT.
   This will enable #Stream and we may implement an __ipairs metamethod.
+* Per-class optimizations.
+  * SndfileStream:sub() for seeking in sound files.
+  * EvdevStream:evabs() for retrieving the minimum/maximum values automatically.

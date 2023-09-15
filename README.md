@@ -44,7 +44,7 @@ Example (one channel):
 
     echo -ne "25   \nStream.SinOsc(440):play()" | socat -,ignoreeof TCP:127.0.0.1:10000"
 
-See also `client.tes` for a SciTECO integration.
+See also `client.tes` for a [SciTECO](https://github.com/rhaberkorn/sciteco) integration.
 
 # Joysticks and Gamepads
 
@@ -68,3 +68,5 @@ to expose them as MIDI events.
 * [midicontroller](https://sourceforge.net/projects/midicontrol/) for producing MIDI CC events
 * MIDI Tracker ???
 * evtest to find and test HID devices
+* listplugins and analyseplugin to inspect LADSPA plugins
+* dssi_list_plugins and dssi_analyse_plugin to inspect DSSI plugins

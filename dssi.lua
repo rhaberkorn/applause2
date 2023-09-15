@@ -546,6 +546,8 @@ DSSIStream = DeriveClass(Stream)
 --
 -- @fixme We could simplify things by just assuming a flat array of
 -- input ports.
+-- @todo We have everything to provide in-program plugin listing and introspection.
+-- E.g. DSSIStream.list().
 function DSSIStream:ctor(file, midi_event_stream, ...)
 	local plugin_file, label = file:match("^([^:]+):(.+)")
 	plugin_file = plugin_file or file
