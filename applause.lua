@@ -1707,12 +1707,19 @@ function SubStream:gtick()
 	-- Perhaps ask stream to skip the first self.i-1 samples
 	-- Either gtick() could take an argument or introduce an
 	-- overwritable gtick_seek(). Problem as always is that
-	-- this would have to chain to substreams.
+	-- this would have to chain to substreams and its now always
+	-- obvious how to pass it on (e.g. to MapStream...).
 	-- Perhaps, it would be wiser to let this be handled by
 	-- an optimizer stage that resolves Stream:sub()-calls.
-	-- @fixme Actually, this is plain wrong and does not work
-	-- if self.stream is cached.
-	for _ = 1, self.i-1 do tick() end
+	for _ = 1, self.i-1 do
+		tick()
+		-- self.stream might be cached (somewhere down the line).
+		-- Therefore it is essential to clear the cache in order to progress
+		-- the stream.
+		-- This however might clear more than necessary,
+		-- resulting in superfluous recalculations.
+		table.clear(sampleCache)
+	end
 
 	local i = self.i
 

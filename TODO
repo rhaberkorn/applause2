@@ -3,9 +3,6 @@
 * Stream:foreach() cannot be interrupted
   Perhaps C core should export an interrupted variable that we can check from Lua.
   For Stream:play() this is solved differently.
-* SndfileStream(...):sub(...) does not work for multi-channel audio files.
-  The reason is that SubStream ticks in gtick() to seek in the source stream
-  which cannot work in cached streams (SndfileStream:ctor() caches for multi-channel streams).
 
 # Features
 
