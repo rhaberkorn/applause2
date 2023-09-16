@@ -1704,13 +1704,15 @@ function SubStream:gtick()
 	local tick = self.stream:gtick()
 
 	-- @fixme There is room for optimization.
-	-- Perhaps ask stream to skip the first self.i-1 samples
-	-- Either gtick() could take an argument or introduce an
-	-- overwritable gtick_seek(). Problem as always is that
-	-- this would have to chain to substreams and its now always
-	-- obvious how to pass it on (e.g. to MapStream...).
-	-- Perhaps, it would be wiser to let this be handled by
-	-- an optimizer stage that resolves Stream:sub()-calls.
+	-- Perhaps ask stream to skip the first self.i-1 samples.
+	-- There should be a Stream:gtick_skip(self.i-1) method
+	-- which defaults to ticking the stream, but could be overwritten
+	-- in certain Stream subclasses.
+	-- Since this functionality is really only required for SubStream,
+	-- we could alternatively add offset-parameters to special
+	-- stream constructors (like SndfileStream:new()) and overwrite SndfileStream:sub().
+	-- A future optimizer stage could move down :sub() as close to the
+	-- "source" as possible.
 	for _ = 1, self.i-1 do
 		tick()
 		-- self.stream might be cached (somewhere down the line).
@@ -1721,10 +1723,10 @@ function SubStream:gtick()
 		table.clear(sampleCache)
 	end
 
-	local i = self.i
+	local i, j = self.i, self.j
 
 	return function()
-		if i > self.j then return end
+		if i > j then return end
 		i = i + 1
 		return tick()
 	end
