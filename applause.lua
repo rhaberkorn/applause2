@@ -914,6 +914,25 @@ function Stream:gnuplot()
 	hnd:close()
 end
 
+--- Print values of stream when they change.
+-- This is useful to debug slowly or seldom changing streams like those
+-- produced by @{MIDIStream} or @{EvdevStream}.
+-- @string[opt='%s'] format
+--   A format string to format the samples.
+--   This can be used to prefix text or tweak the number formatting.
+-- @treturn Stream
+-- @see string.format
+function Stream:print(format)
+	format = format or "%s"
+
+	return self:scan(function(last, sample)
+		if sample ~= last then
+			print(string.format(format, sample))
+		end
+		return sample
+	end)
+end
+
 --- Check whether stream is an instance of a particular class.
 -- @function instanceof
 -- @tparam Class other_class The other object or class to check against.
