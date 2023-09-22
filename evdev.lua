@@ -210,6 +210,6 @@ function Stream:evkey(key)
 	return self:scan(function(last, sample)
 		last = last or 0
 		return sample.type == C.EV_KEY and sample.code == key and
-		       sample.value or last
+		       (sample.value ~= 0 and key or 0) or last
 	end)
 end
