@@ -58,6 +58,25 @@ enum applause_evdev_abs {
 	ABS_VOLUME		= 0x20,
 	ABS_MISC		= 0x28
 };
+
+/*
+ * From dirent.h
+ */
+typedef struct __dirstream DIR;
+
+/* FIXME: Does this work on 32-bit? Can this be defined portably? */
+struct dirent {
+	unsigned long	d_ino;       /* Inode number */
+	unsigned long	d_off;       /* Not an offset; see below */
+	unsigned short	d_reclen;    /* Length of this record */
+	unsigned char	d_type;      /* Type of file; not supported
+	                                by all filesystem types */
+	char		d_name[256]; /* Null-terminated filename */
+};
+
+DIR *opendir(const char *name);
+struct dirent *readdir(DIR *dirp);
+int closedir(DIR *dirp);
 ]]
 
 --- Stream of Evdev (HID device) events.
@@ -68,6 +87,22 @@ enum applause_evdev_abs {
 -- @type EvdevStream
 -- @see MIDIStream
 EvdevStream = DeriveClass(Stream)
+
+--- List all HID devices on stdout.
+-- This is an alternative to `evtest` and displays node id and device names,
+-- that can be used with @{EvdevStream:new}.
+function EvdevStream.list()
+	local dir = ffi.gc(C.opendir("/dev/input"), C.closedir)
+	while true do
+		local entry = C.readdir(dir)
+		if entry == nil then break end
+		local filename = ffi.string(entry[0].d_name)
+		local devname = ffi.gc(C.applause_evdev_getname("/dev/input/"..filename), C.free)
+		if devname ~= nil then
+			print(filename:match("%d+$")..": "..ffi.string(devname))
+		end
+	end
+end
 
 --- Create EvdevStream (stream HID device events).
 -- @function new
@@ -89,8 +124,6 @@ EvdevStream = DeriveClass(Stream)
 -- @see Stream:evabs
 -- @see Stream:evkey
 -- @todo Document the C structure as a Lua table.
--- @todo We could introduce something like EvdevStream.list() to get at least some
--- introspection without having to call evtest.
 function EvdevStream:ctor(id, grab)
 	local grab = grab == nil or grab
 
@@ -100,15 +133,14 @@ function EvdevStream:ctor(id, grab)
 	else
 		assert(type(id) == "string")
 		-- id is assumed to be a Lua pattern to match against the device name
-		local name
-		local i = 0
-		repeat
-			node = "/dev/input/event"..i
-			local buffer = ffi.gc(C.applause_evdev_getname(node), C.free)
-			if buffer == nil then error("Evdev device not found!") end
-			name = ffi.string(buffer)
-			i = i + 1
-		until name:match(id)
+		local dir = ffi.gc(C.opendir("/dev/input"), C.closedir)
+		while true do
+			local entry = C.readdir(dir)
+			if entry == nil then error("Evdev device not found!") end
+			node = "/dev/input/"..ffi.string(entry[0].d_name)
+			local name = ffi.gc(C.applause_evdev_getname(node), C.free)
+			if name ~= nil and ffi.string(name):match(id) then break end
+		end
 	end
 
 	-- Creating only one object has the advantage that the device can be
