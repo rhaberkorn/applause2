@@ -178,22 +178,23 @@ end
 --   This is a C value, integer or string ('REL_X', 'REL_Y'...), specifying the axis to extract.
 --   The possible values correspond to the C header `input-event-codes.h`.
 -- @number[opt=1000] resolution
---   The device resolution, ie. the number of steps between [-1,1].
+--   The device resolution, ie. the number of steps between [-1,+1].
 --   The larger this value, the longer it takes to move from the minimum to the maximum position.
--- @treturn Stream Stream of numbers between [-1,1].
+-- @treturn Stream Stream of numbers between [-1,+1].
 -- @see EvdevStream:new
 -- @see Stream:scale
 -- @usage EvdevStream("TrackPoint"):evrel():scale(440,880):SinOsc():play()
 function Stream:evrel(code, resolution)
 	code = ffi.cast("enum applause_evdev_rel", code)
-	resolution = resolution or 1000
+	resolution = (resolution or 1000)/2
+
 	local min, max = math.min, math.max
 
 	return self:scan(function(last, sample)
-		last = last or 0
+		last = last or -1
 		return sample.type == C.EV_REL and sample.code == code and
-		       min(max(last+sample.value, 0), resolution) or last
-	end) / (resolution/2) - 1
+		       min(max(last+tonumber(sample.value)/resolution, -1), 1) or last
+	end)
 end
 
 --- Filter Evdev event stream to get the last value of a device with absolute positioning (EV_ABS).
@@ -222,7 +223,7 @@ function Stream:evabs(code, min, max)
 	return self:scan(function(last, sample)
 		last = last or 0
 		return sample.type == C.EV_ABS and sample.code == code and
-		       (sample.value - min)/((max-min)/2) - 1 or last
+		       tonumber((sample.value - min)*2)/(max-min) - 1 or last
 	end)
 end
 
