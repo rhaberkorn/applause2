@@ -6,6 +6,7 @@
 
 # Features
 
+* Real-time input. See inputstream branch.
 * Line Continuations on the CLI (like Lua's CLI)
 * CLI auto completions via libreadline.
   This could directly introspect the Stream object for instance.
@@ -48,14 +49,6 @@
   Unfortunately, it will not resolve all non-realtime-safe gtick-invocations.
   It's also questionable what happens when the timestamp wraps. Whether a wrap is safe or not, will depend
   on the generator.
-* Inconsistent signal normalization.
-  Some signals like Stream:CC() are not normalized to [-1,1], so you need
-  special scaling methods like Stream:ccscale().
-  The supposed advantage is that often a signal between [0,1] is needed, so you only
-  need a single division. E.g. Stream:mul(Stream:CC(...) / 127).
-  On the other hand, with normalized outputs, you could also write Stram:mul(Stream:CC(...):scale(1)).
-  Or there could even be a Stream:vol() method that takes signals between [-1,1].
-  The question is whether the JIT compiler is smart enough to optimize this code.
 * The JIT compiler currently does not emit SIMD instructions (see simd-test.lua).
   See also https://github.com/LuaJIT/LuaJIT/issues/40
 * Perhaps always enable Fused multiply-add (-O+fma).

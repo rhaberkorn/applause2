@@ -22,7 +22,7 @@ cdef_include "midi.h"
 -- in absence of events.
 --
 -- @type MIDIStream
--- @usage Stream.SinOsc(440):gain(MIDIStream:CC(0):ccscale()):play()
+-- @usage Stream.SinOsc(440):gain(MIDIStream:CC(0):scale()):play()
 -- @fixme Theoretically, we could pass on a C structure as well.
 -- On the other hand, bit manipulations are necessary anyway to parse the message.
 MIDIStream = DeriveClass(Stream)
@@ -46,16 +46,19 @@ function MIDIStream:gtick()
 	end
 end
 
---- Filter out last value of a specific MIDI control channel.
+--- Filter out last value of a specific MIDI control channel, scaled to [-1,+1].
 -- This remembers the last value and is therefore a stream, representing the controller state.
 -- It is usually applied on @{MIDIStream}.
 -- @within Class Stream
 -- @int control Controller number between [0,127].
 -- @int[opt=0] channel MIDI channel between [0,15].
--- @treturn Stream Stream of numbers between [0,127].
+-- @treturn Stream Stream of numbers between [-1,+1].
 -- @see MIDIStream
--- @see Stream:ccscale
--- @usage Stream.SinOsc(440):gain(MIDIStream:CC(0):ccscale()):play()
+-- @usage Stream.SinOsc(440):gain(MIDIStream:CC(0):scale()):play()
+-- @fixme Most MIDI software appears to use origin 1 channels and control ids.
+-- @fixme Is there actually any reason to keep Stream:CC instead of Stream:CC14?
+-- Stream:CC14 will be slightly slower in case of MIDI events, but those are rare.
+-- Or are there any controllers that will use controller ids >= 0x20 for other purposes?
 function Stream:CC(control, channel)
 	channel = channel or 0
 
@@ -65,38 +68,59 @@ function Stream:CC(control, channel)
 	       "MIDI channel out of range (0 <= x <= 15)")
 
 	local filter = bit.bor(0xB0, channel, bit.lshift(control, 8))
-	local value = 0
 	local band, rshift = bit.band, bit.rshift
 
-	return self:map(function(sample)
-		value = band(sample, 0xFFFF) == filter and
-		        tonumber(rshift(sample, 16)) or value
-		return value
+	return self:scan(function(last, sample)
+		last = last or 0
+		local sample_masked = band(sample, 0xFFFF)
+		if sample_masked == filter then
+			return tonumber(rshift(sample, 16)*2)/0x7F - 1
+		end
+		return last
 	end)
 end
 
---- Scale MIDI controller value.
--- This is very similar to @{Stream:scale} but works for input values between [0, 127]
--- (ie. MIDI CC values).
+--- Filter out last value of a specific **14-bit** MIDI control channel, scaled to [-1,+1].
+-- This remembers the last value and is therefore a stream, representing the controller state.
+-- It is usually applied on @{MIDIStream}.
+-- In contrast to @{Stream.CC}, this supports 14-bit controllers where the
+-- least-significant byte is sent on controller with offset 0x20.
 -- @within Class Stream
--- @StreamableNumber[opt=0] v1 Delivers the lower value.
--- @StreamableNumber v2 Delivers the upper value
--- @treturn Stream
+-- @int control Controller number between [0,127].
+-- @int[opt=0] channel MIDI channel between [0,15].
+-- @treturn Stream Stream of numbers between [-1,+1].
+-- @see MIDIStream
 -- @see Stream:CC
--- @see Stream:scale
--- @fixme If Stream:CC() would output between [-1,1], there would be no need
--- for Stream:ccscale().
-function Stream:ccscale(v1, v2)
-	local lower = v2 and v1 or 0
-	local upper = v2 or v1
+-- @usage Stream.SinOsc(440):gain(MIDIStream:CC14(0):scale()):play()
+-- @fixme Most MIDI software appears to use origin 1 channels and control ids.
+function Stream:CC14(control, channel)
+	channel = channel or 0
 
-	if type(lower) == "number" and type(upper) == "number" then
-		return self:map(function(x)
-			return (x/127)*(upper - lower) + lower
-		end)
-	else
-		return self*((upper - lower)/127) + lower
-	end
+	assert(0 <= control and control <= 127,
+	       "MIDI control number out of range (0 <= x <= 127)")
+	assert(0 <= channel and channel <= 15,
+	       "MIDI channel out of range (0 <= x <= 15)")
+
+	local filter_msb = bit.bor(0xB0, channel, bit.lshift(control, 8))
+	local value_msb = 0
+	local filter_lsb = bit.bor(0xB0, channel, bit.lshift(bit.bor(0x20, control), 8))
+	local value_lsb = 0
+	local band, bor, rshift = bit.band, bit.bor, bit.rshift
+
+	return self:scan(function(last, sample)
+		last = last or 0
+		local sample_masked = band(sample, 0xFFFF)
+		if sample_masked == filter_msb then
+			value_msb = rshift(band(sample, 0xFF0000), 8+1)
+			-- There is some redundancy, but it's important to scale here
+			-- in order to optimize the common case (unchanged CC).
+			return tonumber(bor(value_msb, value_lsb)*2)/0x3FFF - 1
+		elseif sample_masked == filter_lsb then
+			value_lsb = rshift(sample, 16)
+			return tonumber(bor(value_msb, value_lsb)*2)/0x3FFF - 1
+		end
+		return last
+	end)
 end
 
 --- Filter out last value of a MIDI note velocity.
@@ -111,6 +135,8 @@ end
 -- @see MIDIStream
 -- @see ntom
 -- @usage Stream.SinOsc(ntof("C4")):gain(MIDIStream:mvelocity("C4") / 127):play()
+-- @fixme Perhaps it also makes sense to scale to [-1,+1]?
+-- A velocity will very seldom be used in situations where such a signal is useful, though.
 function Stream:mvelocity(note, channel)
 	note = type(note) == "string" and ntom(note) or note
 	channel = channel or 0
@@ -120,17 +146,15 @@ function Stream:mvelocity(note, channel)
 	assert(0 <= channel and channel <= 15,
 	       "MIDI channel out of range (0 <= x <= 15)")
 
-	local on_filter  = bit.bor(0x90, channel, bit.lshift(note, 8))
-	local off_filter = bit.bor(0x80, channel, bit.lshift(note, 8))
-	local value = 0
+	local filter_on  = bit.bor(0x90, channel, bit.lshift(note, 8))
+	local filter_off = bit.bor(0x80, channel, bit.lshift(note, 8))
 	local band, rshift = bit.band, bit.rshift
 
-	return self:map(function(sample)
-		value = band(sample, 0xFFFF) == on_filter and
-		        rshift(sample, 16) or
-		        band(sample, 0xFFFF) == off_filter and
-		        0 or value
-		return value
+	return self:scan(function(last, sample)
+		last = last or 0
+		local sample_masked = band(sample, 0xFFFF)
+		return sample_masked == filter_on and rshift(sample, 16) or
+		       sample_masked == filter_off and 0 or last
 	end)
 end
 
