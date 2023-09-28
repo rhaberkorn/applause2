@@ -55,10 +55,13 @@ end
 -- @treturn Stream Stream of numbers between [-1,+1].
 -- @see MIDIStream
 -- @usage Stream.SinOsc(440):gain(MIDIStream:CC(0):scale()):play()
--- @fixme Most MIDI software appears to use origin 1 channels and control ids.
+-- @todo MIDI defines standart controller names.
+-- Perhaps we want to support these by passing strings.
+-- @fixme Most MIDI software appears to use origin 1 channels.
 -- @fixme Is there actually any reason to keep Stream:CC instead of Stream:CC14?
 -- Stream:CC14 will be slightly slower in case of MIDI events, but those are rare.
--- Or are there any controllers that will use controller ids >= 0x20 for other purposes?
+-- Or are there any controllers that will use controller ids where bit 0x20 is set for other purposes?
+-- Unfortunately, we cannot be sure of it.
 function Stream:CC(control, channel)
 	channel = channel or 0
 
@@ -80,10 +83,52 @@ function Stream:CC(control, channel)
 	end)
 end
 
+--- Filter out last value of a specific relative MIDI control channel.
+-- This remembers the last value and is therefore a stream, representing the controller state.
+-- It will currently only work if the CC values are two's complement signed values.
+-- It is usually applied on @{MIDIStream}.
+-- @within Class Stream
+-- @int control Controller number between [0,127].
+-- @int[opt=0] channel MIDI channel between [0,15].
+-- @number[opt=1000] resolution
+--   The device resolution, ie. the number of steps between [-1,+1].
+--   The larger this value, the longer it takes to move from the minimum to the maximum position.
+-- @treturn Stream Stream of numbers between [-1,+1].
+-- @see MIDIStream
+-- @see Stream:evrel
+-- @usage Stream.SinOsc(440):gain(MIDIStream:CCrel(0):scale()):play()
+-- @todo MIDI defines standart controller names.
+-- Perhaps we want to support these by passing strings.
+-- @fixme Most MIDI software appears to use origin 1 channels.
+function Stream:CCrel(control, channel, resolution)
+	channel = channel or 0
+	resolution = (resolution or 1000)/2
+
+	assert(0 <= control and control <= 127,
+	       "MIDI control number out of range (0 <= x <= 127)")
+	assert(0 <= channel and channel <= 15,
+	       "MIDI channel out of range (0 <= x <= 15)")
+
+	local filter = bit.bor(0xB0, channel, bit.lshift(control, 8))
+	local band, rshift = bit.band, bit.rshift
+	local min, max = math.min, math.max
+	local int8_ct = ffi.typeof('int8_t')
+
+	return self:scan(function(last, sample)
+		last = last or -1
+		local sample_masked = band(sample, 0xFFFF)
+		if sample_masked == filter then
+			local rel = tonumber(int8_ct(band(rshift(sample, 16-1), 0xFE)) / 2)
+			return min(max(last+rel/resolution, -1), 1)
+		end
+		return last
+	end)
+end
+
 --- Filter out last value of a specific **14-bit** MIDI control channel, scaled to [-1,+1].
 -- This remembers the last value and is therefore a stream, representing the controller state.
 -- It is usually applied on @{MIDIStream}.
--- In contrast to @{Stream.CC}, this supports 14-bit controllers where the
+-- In contrast to @{Stream:CC}, this supports 14-bit controllers where the
 -- least-significant byte is sent on controller with offset 0x20.
 -- @within Class Stream
 -- @int control Controller number between [0,127].
@@ -92,7 +137,9 @@ end
 -- @see MIDIStream
 -- @see Stream:CC
 -- @usage Stream.SinOsc(440):gain(MIDIStream:CC14(0):scale()):play()
--- @fixme Most MIDI software appears to use origin 1 channels and control ids.
+-- @todo MIDI defines standart controller names.
+-- Perhaps we want to support these by passing strings.
+-- @fixme Most MIDI software appears to use origin 1 channels.
 function Stream:CC14(control, channel)
 	channel = channel or 0
 
