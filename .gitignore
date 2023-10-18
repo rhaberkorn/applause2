@@ -3,3 +3,6 @@
 
 /.applause_history
 /doc
+
+# Jupyter notebooks
+.ipynb_checkpoints/

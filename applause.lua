@@ -2479,6 +2479,7 @@ end
 --
 dofile "sndfile-stream.lua"
 dofile "filters.lua"
+dofile "fft.lua"
 dofile "dssi.lua"
 dofile "midi.lua"
 dofile "evdev.lua"
