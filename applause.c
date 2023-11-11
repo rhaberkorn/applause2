@@ -822,7 +822,7 @@ static const NativeMethod native_methods[] = {
 static void
 usage(const char *program)
 {
-	printf("%s [-h] [-o OUTPUT] [-b SIZE]\n"
+	printf("%s [-h] [-o OUTPUT] [-b SIZE] [SCRIPT [ARGS]]\n"
 	       "\tOUTPUT\tNumber of output ports to reserve (default: %d)\n"
 	       "\tSIZE\tMinimum size of the output buffer in milliseconds (default: %dms)\n",
 	       program,
@@ -871,12 +871,6 @@ main(int argc, char **argv)
 	signal_action.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &signal_action, NULL);
 
-	/*
-	 * Load the libhistory file.
-	 */
-	using_history();
-	read_history(APPLAUSE_HISTORY);
-
 	L = luaL_newstate();
 	if (!L) {
 		fprintf(stderr, "Error creating Lua state.\n");
@@ -920,42 +914,81 @@ main(int argc, char **argv)
 	lua_pushinteger(L, (lua_Integer)jack_get_sample_rate(client));
 	lua_setglobal(L, "samplerate");
 
-	/*
-	 * Launch the command server.
-	 */
-	if (pthread_create(&command_server_thread, NULL, command_server, L)) {
-		perror("pthread_create");
-		exit(EXIT_FAILURE);
-	}
-
-	/*
-	 * Main REPL loop.
-	 * Since the command server has been launched, all lua state access
-	 * must be synchronized using lua_mutex.
-	 */
-	for (;;) {
+	if (optind < argc) {
 		/*
-		 * FIXME: Get global _PROMPT or _PROMPT2
+		 * Execute script
 		 */
-		char *line = readline("> ");
+		lua_createtable(L, argc-optind, 0);
+		for (int i = optind; i < argc; i++) {
+			lua_pushinteger(L, i-optind);
+			lua_pushstring(L, argv[i]);
+			lua_settable(L, -3);
+		}
+		lua_setglobal(L, "arg");
 
-		if (!line) {
-			putchar('\n');
-			break;
+		lua_pushcfunction(L, traceback);
+
+		if (luaL_loadfile(L, argv[optind]) || lua_pcall(L, 0, 0, -2)) {
+			fprintf(stderr, "Error running %s: %s\n",
+			        argv[optind], lua_tostring(L, -1));
+			exit(EXIT_FAILURE);
 		}
 
-		pthread_mutex_lock(&lua_mutex);
-		do_command(L, line);
-		pthread_mutex_unlock(&lua_mutex);
+		/* remove traceback function */
+		lua_remove(L, -1);
+	} else {
+		/*
+		 * Load the libhistory file.
+		 */
+		using_history();
+		read_history(APPLAUSE_HISTORY);
 
-		if (*line)
-			add_history(line);
+		/*
+		 * Launch the command server.
+		 */
+		if (pthread_create(&command_server_thread, NULL, command_server, L)) {
+			perror("pthread_create");
+			exit(EXIT_FAILURE);
+		}
 
-		free(line);
+		/*
+		 * Main REPL loop.
+		 * Since the command server has been launched, all lua state access
+		 * must be synchronized using lua_mutex.
+		 */
+		for (;;) {
+			/*
+			 * FIXME: Get global _PROMPT or _PROMPT2
+			 */
+			char *line = readline("> ");
+
+			if (!line) {
+				putchar('\n');
+				break;
+			}
+
+			pthread_mutex_lock(&lua_mutex);
+			do_command(L, line);
+			pthread_mutex_unlock(&lua_mutex);
+
+			if (*line)
+				add_history(line);
+
+			free(line);
+		}
+
+		/*
+		 * Write libhistory file
+		 */
+		if (write_history(APPLAUSE_HISTORY))
+			perror("write_history");
+
+		/*
+		 * FIXME: Shut down connection server.
+		 */
 	}
 
 	/*
-	 * FIXME: Shut down connection server.
 	 * FIXME: Clean up properly.
 	 */
 #if 0
@@ -965,12 +998,6 @@ main(int argc, char **argv)
 #endif
 
 	lua_close(L);
-
-	/*
-	 * Write libhistory file
-	 */
-	if (write_history(APPLAUSE_HISTORY))
-		perror("write_history");
 
 	return 0;
 }

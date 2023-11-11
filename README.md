@@ -40,6 +40,8 @@ Example (one channel):
 
     > Stream.SinOsc(440):play()
 
+You can also run standalone scripts (batch mode), just like the standard Lua interpreter.
+
 # Applause Clients (Editor Integration)
 
     echo -ne "25   \nStream.SinOsc(440):play()" | socat -,ignoreeof TCP:127.0.0.1:10000"
