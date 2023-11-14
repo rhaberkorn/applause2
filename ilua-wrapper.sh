@@ -5,4 +5,4 @@
 # Thirdly, if you create a symbolic link to lua in a Python environment of ILua, this invoke
 # Applause by default and it will even work with Jupyter Notebooks without further tweaks.
 cd $(dirname $(readlink -m "$0"))
-exec ./applause -o 2 "$@"
+exec ./applause $APPLAUSE_OPTS "$@"

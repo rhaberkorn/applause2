@@ -5,6 +5,9 @@
   For Stream:play() this is solved differently.
 * The MIDIStream should be flushed when starting via Stream:play().
 * There are lots of limitations with Jupyter servers (see README).
+  Perhaps it would be better to use xeus-lua, but that would require us to refactor everything
+  into a proper Lua library.
+  https://github.com/jupyter-xeus/xeus-lua
 
 # Features
 
