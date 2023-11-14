@@ -896,11 +896,22 @@ function Stream:gnuplot()
 		error("Cannot plot infinite stream")
 	end
 
+	local cmd = "feedgnuplot --exit --lines --ymin -1 --ymax 1 --domain"
+
+	local svg_file
+	if _G._send_display_data then
+		-- Some extremely crude support for plotting directly into Jupyter ILua cells.
+		-- NOTE: With io.popen() we cannot read and write to the pipe at the
+		-- same time, so we must dump the file to disk.
+		svg_file = os.tmpname()
+		cmd = cmd.." --terminal svg >"..svg_file
+	end
+
 	-- NOTE: We're not using Stream:pipe() here, so we can
 	-- efficiently calculate a time index.
 	-- FIXME: Using something like libplplot would be more
 	-- efficient
-	local hnd = io.popen("feedgnuplot --exit --lines --ymin -1 --ymax 1 --domain", "w")
+	local hnd = io.popen(cmd, "w")
 	hnd:setvbuf("full")
 
 	local second = sec()
@@ -912,6 +923,13 @@ function Stream:gnuplot()
 	end)
 
 	hnd:close()
+
+	if _G._send_display_data then
+		_G._send_display_data{
+			['image/svg+xml'] = io.open(svg_file):read('*a')
+		}
+		os.remove(svg_file)
+	end
 end
 
 --- Print values of stream when they change.
