@@ -42,7 +42,10 @@
 #define CMD_SERVER_IP   	"127.0.0.1"
 #define CMD_SERVER_PORT		10000
 
-#define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
+#define MAX(X,Y)		((X) > (Y) ? (X) : (Y))
+
+#define likely(X)		__builtin_expect((X), 1)
+#define unlikely(X)		__builtin_expect((X), 0)
 
 static jack_client_t		*client = NULL;
 
@@ -66,9 +69,10 @@ static applause_output_port *output_ports = NULL;
 /** Number of Applause output ports */
 static int output_ports_count = DEFAULT_NUMBER_OF_OUTPUT_PORTS;
 
-static sig_atomic_t		interrupted = 0;
+static lua_State		*L_global = NULL;
 
-static sig_atomic_t		playback = 0;
+static volatile sig_atomic_t	interrupted = 0;
+static volatile sig_atomic_t	playback = 0;
 
 typedef struct applause_midi_port {
 	jack_port_t		*jack_port;
@@ -132,14 +136,57 @@ svsem_free(int id)
 }
 
 /**
+ * Can be called from Lua code to check the interruption-flag,
+ * ie. to detect SIGINT and CTRL+C interruptions.
+ *
+ * We do not simply expose the interrupted flag since LuaJIT
+ * does not support volatile variables and we cannot guarantee that
+ * the read is not optimized away.
+ * On the other hand, this function cannot raise a Lua error
+ * (and C functions via the classic C API are slow), so there is
+ * another wrapper in applause.lua.
+ */
+int
+applause_is_interrupted(void)
+{
+	if (likely(!interrupted))
+		return 0;
+
+	interrupted = 0;
+	lua_sethook(L_global, NULL, 0, 0);
+	return 1;
+}
+
+static void
+signal_hook(lua_State *L, lua_Debug *ar)
+{
+	interrupted = 0;
+	lua_sethook(L, NULL, 0, 0);
+
+	/* Avoid luaL_error -- a C hook doesn't add an extra frame. */
+	luaL_where(L, 0);
+	lua_pushfstring(L, "%sinterrupted!", lua_tostring(L, -1));
+	lua_error(L);
+}
+
+static inline void
+applause_interrupt(void)
+{
+	/*
+	 * This should raise a Lua error via the hook ASAP.
+	 * Unfortunetely, this cannot work reliably with JIT compilation
+	 * enabled (see also https://luajit.org/faq.html#ctrlc).
+	 * We therefore also set an interrupted flag that can be polled
+	 * efficiently in tight loops.
+	 */
+	interrupted = 1;
+	lua_sethook(L_global, signal_hook, LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1);
+}
+
+/**
  * Handler for SIGINT, SIGUSR1 and SIGUSR2 signals.
  *
- * SIGINT is delivered e.g. when the user presses
- * CTRL+C.
- * It sets `interrupted` which is polled in the Lua play()
- * method which allows us to interrupt long (possibly infinite)
- * sound playback.
- *
+ * SIGINT is delivered e.g. when the user presses CTRL+C.
  * SIGUSR1 and SIGUSR2 are sent by parent to child
  * clients in order to control playback.
  */
@@ -147,7 +194,7 @@ static void
 signal_handler(int signum)
 {
 	switch (signum) {
-	case SIGINT: interrupted = 1; break;
+	case SIGINT: applause_interrupt(); break;
 	case SIGUSR1: playback = 1; break;
 	case SIGUSR2: playback = 0; break;
 	}
@@ -415,17 +462,12 @@ applause_push_sample(int output_port_id, double sample_double)
 	jack_default_audio_sample_t sample =
 			(jack_default_audio_sample_t)sample_double;
 
-	if (interrupted) {
-		interrupted = 0;
-		return APPLAUSE_AUDIO_INTERRUPTED;
-	}
-
 	/*
 	 * NOTE: The alternative to reporting invalid port Ids here
 	 * would be exporting output_ports_count, so the Lua code can
 	 * check it and assert()ing here instead.
 	 */
-	if (output_port_id < 1 || output_port_id > output_ports_count)
+	if (unlikely(output_port_id < 1 || output_port_id > output_ports_count))
 		return APPLAUSE_AUDIO_INVALID_PORT;
 	port = output_ports + output_port_id - 1;
 
@@ -441,7 +483,7 @@ applause_push_sample(int output_port_id, double sample_double)
 	jack_ringbuffer_write(port->buffer, (const char *)&sample,
 	                      sizeof(sample));
 
-	if (port->buffer_xrun) {
+	if (unlikely(port->buffer_xrun)) {
 		port->buffer_xrun = 0;
 		return APPLAUSE_AUDIO_XRUN;
 	}
@@ -625,8 +667,8 @@ static pthread_mutex_t lua_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /**
  * Thread monitoring the client file desciptor.
- * This will set the interrupted flag if the remote
- * end closes its write part of the socket.
+ * This will raise interrupt the current Lua script if the remote
+ * end closes its write part of the socket (just like SIGINT would).
  * That's why we need the length header at the beginning
  * of requests.
  * There seems to be no easy way to find out whether the
@@ -653,7 +695,7 @@ monitor_thread_cb(void *user_data)
 	while (poll(&pfd, 1, -1) != 1 ||
 	       !(pfd.revents & (POLLRDHUP | POLLERR | POLLHUP)));
 
-	interrupted = 1;
+	applause_interrupt();
 	return NULL;
 }
 
@@ -741,9 +783,9 @@ command_server(void *user_data)
 		pthread_mutex_lock(&lua_mutex);
 
 		/*
-		 * Start another thread monitoring client_fd and setting
-		 * the interrupted flag in case the remote end terminates
-		 * prematurely. This has the effect of ^C in SciTECO interrupting
+		 * Start another thread monitoring client_fd for raising SIGINT
+		 * in case the remote end terminates prematurely.
+		 * This has the effect of ^C in SciTECO interrupting
 		 * the current command (e.g. play()) at least when using
 		 * socat (see monitor_thread_cb()).
 		 * A monitoring thread is started instead of running do_command()
@@ -773,7 +815,7 @@ command_server(void *user_data)
 		/*
 		 * FIXME: It would be nice to catch broken sockets
 		 * (e.g. waiting for play() has been interrupted), in order
-		 * to set the interrupted flag.
+		 * to raise SIGINT.
 		 * However it seems we'd need another thread for that running
 		 * do_command(), so we can select() the fd and eventually
 		 * join the thread.
@@ -855,13 +897,6 @@ main(int argc, char **argv)
 		}
 	}
 
-	/*
-	 * Register sigint_handler() as the SIGINT handler.
-	 * This sets `interrupted`. Currently this is only polled
-	 * in the Lua play() method in order to interrupt long
-	 * sound playing.
-	 * Otherwise it is ignored.
-	 */
 	memset(&signal_action, 0, sizeof(signal_action));
 	signal_action.sa_handler = signal_handler;
 	sigaction(SIGINT, &signal_action, NULL);
@@ -871,7 +906,7 @@ main(int argc, char **argv)
 	signal_action.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &signal_action, NULL);
 
-	L = luaL_newstate();
+	L = L_global = luaL_newstate();
 	if (!L) {
 		fprintf(stderr, "Error creating Lua state.\n");
 		exit(EXIT_FAILURE);

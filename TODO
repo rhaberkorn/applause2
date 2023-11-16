@@ -1,13 +1,14 @@
 # Bugs
 
-* Stream:foreach() cannot be interrupted
-  Perhaps C core should export an interrupted variable that we can check from Lua.
-  For Stream:play() this is solved differently.
 * The MIDIStream should be flushed when starting via Stream:play().
 * There are lots of limitations with Jupyter servers (see README).
   Perhaps it would be better to use xeus-lua, but that would require us to refactor everything
-  into a proper Lua library.
+  into a proper Lua library and it's harder to build.
   https://github.com/jupyter-xeus/xeus-lua
+* CTRL+C interruption on the REPL loop does not always work.
+  Test case: while true do end
+  This is a known bug in LuaJIT, see https://luajit.org/faq.html#ctrlc.
+  As a workaround, add checkint() to all tight loops.
 
 # Features
 
@@ -30,6 +31,8 @@
   or with a Stream:savenow() shortcut.
 * Multi-core support via GStreamer-like queue:
   https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-queue.html
+  * If it turns out, we cannot cleanly fork() after starting the Jack client,
+    it might be possible to send Streams as byte code dumps as well.
 * Stream optimizer
   * Automatic caching (finding identical subtrees).
   * Removing contraproductive caching, e.g. after plain number streams, MIDIStream, EvdevStream...

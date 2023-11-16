@@ -125,13 +125,21 @@ APPLAUSE_OPTS="-o 2" jupyter notebook --MultiKernelManager.default_kernel_name=l
 This works assuming that you symlinked `ilua-wrapper.sh` to `lua` as described above.
 An alternative might be to create a custom Jupyter kernel configuration (kernel.json).
 
+If the browser is not opened automatically on the notebook's URL, you might want to try
+visiting http://localhost:8888/.
+
 Please note the following restrictions/bugs:
 
 * You cannot publicly host the Jupyter Notebook as the sound is generated on the host machine.
+  Similarily, it would be hard to wrap everything in a Docker container.
 * You cannot currently interrupt an endlessly running stream without restarting the kernel
   (see this [ILua bug](https://github.com/guysv/ilua/issues/1)).
-* ILua does not work well with our custom `Stream:_tostring()` metamethods.
+* ILua does not work well with our custom `Stream:__tostring()` metamethods.
   As a workaround, invoke `tostring()` manually on Streams.
 * The output of other functions like Stream:toplot() is garbled.
 * You cannot currently output rich text or graphics.
   There is a working [workaround](https://github.com/guysv/ilua/issues/5), though.
+  At least `Stream:gnuplot()` can now plot graphs with this workaround.
+
+There are workarounds for most of these problems and they might eventually be upstreamed
+or ILua will be forked.
