@@ -77,11 +77,12 @@ to expose them as MIDI events.
 
 Applause can be run in [Jupyter](https://jupyter.org/) Consoles and even Notebooks thanks to
 [ILua](https://github.com/guysv/ilua).
+For full support of all feautures, you must currently use an unofficial [ILua fork](https://github.com/rhaberkorn/ilua).
 First, install ILua into a Python environment
 (see also this [ILua ticket](https://github.com/guysv/ilua/issues/28)):
 
 ```bash
-git clone https://github.com/guysv/ilua.git --recurse-submodules
+git clone -b improvements --recurse-submodules https://github.com/rhaberkorn/ilua.git
 cd ilua
 python3 -m venv env
 . env/bin/activate
@@ -90,7 +91,7 @@ pip install twisted==22.10.0 .
 
 You can now directly run an Applause Jupyter Console session:
 
-```
+```bash
 cd ~/applause
 ilua --lua-interpreter=./applause
 ```
@@ -99,26 +100,26 @@ In order to tweak Applause command line parameters and be independant of the exe
 the included wrapper script.
 It also allows passing in additional arguments to Applause, e.g.:
 
-```
+```bash
 APPLAUSE_OPTS="-o 2" ilua --lua-interpreter=./ilua-wrapper.sh
 ```
 
 You can symlink this to `lua` in the Python environment to make Applause the default
 ILua interpreter in this Python environment:
 
-```
+```bash
 ln -s ~/applause/ilua-wrapper.sh env/bin/lua
 ```
 
 If you would like to launch a Jupyter Notebook (Web UI!), first install the following Pip package:
 
-```
+```bash
 pip install notebook
 ```
 
 Now launch a web server and follow the onscreen instructions:
 
-```
+```bash
 APPLAUSE_OPTS="-o 2" jupyter notebook --MultiKernelManager.default_kernel_name=lua
 ```
 
@@ -131,15 +132,5 @@ visiting http://localhost:8888/.
 Please note the following restrictions/bugs:
 
 * You cannot publicly host the Jupyter Notebook as the sound is generated on the host machine.
-  Similarily, it would be hard to wrap everything in a Docker container.
-* You cannot currently interrupt an endlessly running stream without restarting the kernel
-  (see this [ILua bug](https://github.com/guysv/ilua/issues/1)).
-* ILua does not work well with our custom `Stream:__tostring()` metamethods.
-  As a workaround, invoke `tostring()` manually on Streams.
-* The output of other functions like Stream:toplot() is garbled.
-* You cannot currently output rich text or graphics.
-  There is a working [workaround](https://github.com/guysv/ilua/issues/5), though.
-  At least `Stream:gnuplot()` can now plot graphs with this workaround.
-
-There are workarounds for most of these problems and they might eventually be upstreamed
-or ILua will be forked.
+  Similarily, it would be tricky to wrap everything in a Docker container.
+* The output of some functions like Stream:toplot() is garbled.

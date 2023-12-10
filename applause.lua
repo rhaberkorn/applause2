@@ -105,8 +105,8 @@ end
 -- This variable is overwritten by the C core.
 samplerate = 44100
 
---- Convert seconds to sample numbers
--- These are functions, so we can round the result.
+--- Convert seconds to sample numbers.
+-- These are functions, so we can round the result
 -- automatically.
 -- @number[opt=1] x Number of seconds
 -- @treturn int Number of samples
