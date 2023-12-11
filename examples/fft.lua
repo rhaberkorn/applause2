@@ -28,7 +28,7 @@ end):IFFT(1024):play()
 noisy = Stream.SinOsc(440):mix(NoiseStream, 0.4)
 tostream(magnitude(FFT(Hamming(noisy:sub(1, 1024))))):mul(0.05):gnuplot()
 
--- Naive noise canceling
+-- Naive noise cancelling
 noisy:FFT(1024, Hamming):map(function(spectrum)
 	assert(#spectrum == 513)
 	for i = 1, #spectrum do
