@@ -15,8 +15,8 @@ tostream(phase(FFT(Stream.SinOsc(samplerate*20/1024, 0.7):sub(1, 1024)))):gnuplo
 
 -- Naive pitch shifting
 -- This is not easy to get right. See https://www.reddit.com/r/DSP/comments/k6t24c/pitch_shifting_algorithm_in_frequency_domain/
-robin = SndfileStream("tracks/robin-mono.wav"):sub(sec(10.284), sec(17.466)):eval()
-robin:FFT(1024):map(function(spectrum)
+haiku = SndfileStream("examples/haiku.flac")
+haiku:FFT(1024):map(function(spectrum)
 	assert(#spectrum == 513)
 	-- NOTE: We cannot use Stream:resample() as it won't work with complex samples.
 	for i = 1, 512/2 do spectrum[i] = spectrum[i*2] end
