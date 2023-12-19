@@ -2,8 +2,6 @@
 --- @module applause
 ---
 -- TODO:
--- Windowing
--- Jupyter Notebook
 -- Documentation
 local bit = require "bit"
 local ffi = require "ffi"
@@ -298,6 +296,21 @@ function Hamming(samples)
 	for i = 1, #samples do
 		local alpha = 0.54
 		samples[i] = samples[i]*(alpha - (1-alpha)*cos((pi2*i)/(#samples-1)))
+	end
+
+	return samples
+end
+
+-- Also called Hann
+function Hanning(samples)
+	assert(type(samples) == "table")
+	if samples.is_a_stream then samples = samples:totable() end
+
+	local cos = math.cos
+	local pi2 = 2*math.pi
+
+	for i = 1, #samples do
+		samples[i] = samples[i]*(1 - cos((pi2*i)/(#samples-1)))/2;
 	end
 
 	return samples
