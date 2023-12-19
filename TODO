@@ -44,8 +44,32 @@
 * Allow stringified timestamps everywhere, where we currently accept lengths in samples. tosamples()?
 * Github pages (LDoc documentation).
   They can be automatically pushed by a Github action.
-  Since they will always be public, copyright questions should be resolved first.
+  Can we change what index.html points to?
+  Alternatively, we could make a simple browser-side forwarding.
 * Allow limited operation without a running Jack server.
+* Package everything including Jupyter in Docker container.
+  This requires mounting via -v /dev/shm:/dev/shm:rw -u $(id -u):$(id -g).
+  Ideally, this will work with X11 windows as well.
+  Perhaps bundle https://github.com/Xpra-org/xpra/.
+  The HTML client might even allow integrating Tk windows into Jupyter cells?
+* Widget toolkit integration.
+  We could optionally integrate Gtk (lgi) or Tcl and drive their main loops from Stream:foreach() or Stream:play()
+  whenever their modules are loaded.
+  This would allow creating GUIs to control streams without having to go via external MIDI
+  applications. There would also have to be a new Stream class that reads values always from the
+  class table, so you can actually change values from Lua callbacks.
+  Or a TclStream for reading Tcl variables.
+  The Tcl/Tk C-API is easy enough to interface directly from FFI.
+  It would also be possible to replace GNU plot with drawing into Tk canvases both in stand-alone
+  windows and for sending them to Jupyter.
+  E.g. this here allows exporting Tk canvases to SVG: https://wiki.tcl-lang.org/page/can2svg
+  There is also http://www.gtk-server.org/, which would be really easy to integrate,
+  runs in its own process (no need to drive the main loop), can potentially work with Broadway (Web)
+  backend that could be hacked into Jupyter as well.
+  On the other hand, to get values back into Lua, you will have to poll a TCP socket or FIFO anyway.
+* Unit Tests.
+  We could use LuaUnit (https://github.com/bluebird75/luaunit) and directly import luaunit.lua
+  or add a Git submodule.
 
 # Improvements
 
