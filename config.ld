@@ -9,7 +9,7 @@ examples = "examples/"
 
 file = {
 	"applause.lua", "sndfile-stream.lua", -- "sndfile.lua",
-	"filters.lua", "dssi.lua", "midi.lua", "evdev.lua"
+	"filters.lua", "fft.lua", "dssi.lua", "midi.lua", "evdev.lua"
 }
 
 no_space_before_args = true
