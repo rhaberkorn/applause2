@@ -36,3 +36,20 @@ noisy:FFT(1024, Hamming):map(function(spectrum)
 	end
 	return spectrum
 end):IFFT(1024):play()
+
+-- Pitch Tracking
+-- See also: http://blog.bjornroche.com/2012/07/frequency-detection-using-fft-aka-pitch.html
+opera = SndfileStream("examples/opera.flac")
+opera:LPF(10000):FFT(1024, Hanning):map(function(spectrum)
+	local size = (#spectrum-1)*2
+	local peak_i, peak_val
+	for i = 1, #spectrum do
+		-- We don't have to take the square root to find the peak
+		local val = spectrum[i].re^2 + spectrum[i].im^2
+		if not peak_val or val > peak_val then
+			peak_i, peak_val = i, val
+		end
+	end
+	-- Return peak as frequency
+	return tostream((peak_i-1)*samplerate/size):sub(1, size)
+end):ravel():div(10000):crush(7):mul(10000):SqrOsc():crush():play()
