@@ -1,5 +1,5 @@
 #define _XOPEN_SOURCE
-#define _POSIX_C_SOURCE 199506L
+//#define _POSIX_C_SOURCE 200112
 #define _GNU_SOURCE
 
 #include <stdio.h>
@@ -18,6 +18,7 @@
 #include <sys/sem.h>
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <pthread.h>
 

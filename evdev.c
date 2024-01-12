@@ -19,11 +19,11 @@
 
 #include "evdev.h"
 
-typedef struct applause_evdev {
+struct applause_evdev {
 	int			fd;
 	jack_ringbuffer_t	*buffer;
 	pthread_t		thread;
-} applause_evdev;
+};
 
 char *
 applause_evdev_getname(const char *node)

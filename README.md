@@ -9,10 +9,14 @@ You have to manually build and install LuaJIT v2.1:
     make
     sudo make install
 
-Furthermore, install the following dependencies:
+Furthermore, install the following dependencies (Ubuntu):
 
     sudo apt-get install build-essential libreadline-dev libjack-jackd2-dev \
                          libsndfile1 libasound2 feedgnuplot
+
+On FreeBSD, you will need the following packages/ports:
+
+    pkg install gmake readline jackit evdev-proto libsndfile alsa-lib p5-feedgnuplot
 
 To compile the project, type:
 
@@ -35,6 +39,11 @@ TODO: How to use jack-plumbing?
 
 This may require root rights for accessing HID devices.
 You may also add the current user to the `input` group.
+On FreeBSD, you might need to add the current user to the `wheel` group and
+give read acceess to evdev nodes by creating `/etc/devd.rules`:
+
+    [localrules=10]
+      add path 'input/*' mode 0640
 
 Example (one channel):
 
