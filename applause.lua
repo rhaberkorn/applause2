@@ -896,6 +896,8 @@ end
 
 --- Plot stream using [gnuplot](http://www.gnuplot.info/).
 -- This is not allowed for infinite streams.
+-- Graphics will be displayed inline in Jupyter notebooks and when
+-- using the [kitty](https://sw.kovidgoyal.net/kitty/) terminal emulator.
 -- @warning This requires the feedgnuplot script.
 -- @fixme gnuplot is not the ideal tool for plotting audio data.
 function Stream:gnuplot()
@@ -912,6 +914,17 @@ function Stream:gnuplot()
 		-- same time, so we must dump the file to disk.
 		svg_file = os.tmpname()
 		cmd = cmd.." --terminal svg >"..svg_file
+	elseif os.getenv("TERM") == "xterm-kitty" then
+		-- FIXME: This could be supported on other emulators like WezTerm and Konsole as well.
+		-- FIXME: This assumes a white on black terminal.
+		-- Perhaps it should be configurable via a gnuplot script.
+		cmd = cmd..[[ \
+			--set 'border lc rgb "white"' \
+			--set 'style line 1 lc rgb "white"' \
+			--set 'style increment user' \
+			--terminal 'pngcairo background rgb "black"' | \
+			kitten icat --align left \
+		]]
 	end
 
 	-- NOTE: We're not using Stream:pipe() here, so we can

@@ -98,3 +98,5 @@
 * Per-class optimizations.
   * SndfileStream:sub() for seeking in sound files.
   * EvdevStream:evabs() for retrieving the minimum/maximum values automatically.
+* More options for plotting into terminals via Stream:gnuplot().
+  Theoretically we can support xterm and others via braille characters (gnuplot's block terminal).
