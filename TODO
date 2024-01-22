@@ -100,3 +100,5 @@
   * EvdevStream:evabs() for retrieving the minimum/maximum values automatically.
 * More options for plotting into terminals via Stream:gnuplot().
   Theoretically we can support xterm and others via braille characters (gnuplot's block terminal).
+  It might also be viable to do our own graphics via Cairo, which allows SVG output in contrast to
+  Tk canvases.

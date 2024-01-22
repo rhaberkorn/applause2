@@ -37,19 +37,41 @@ TODO: How to use jack-plumbing?
 
     ./applause -o 2
 
-This may require root rights for accessing HID devices.
-You may also add the current user to the `input` group.
-On FreeBSD, you might need to add the current user to the `wheel` group and
-give read acceess to evdev nodes by creating `/etc/devd.rules`:
-
-    [localrules=10]
-      add path 'input/*' mode 0640
-
 Example (one channel):
 
     > Stream.SinOsc(440):play()
 
 You can also run standalone scripts (batch mode), just like the standard Lua interpreter.
+
+## Operating System Tweaks
+
+### Linux (Ubuntu)
+
+In order to run Jack and Applause with real-time scheduling, it should be sufficient to
+add your user to the `audio` group.
+
+To give regular users access to HID devices, it should suffice to add the current user to
+the `input` group.
+
+### FreeBSD
+
+For realtime scheduling, you might have to check out the mac_priority kernel module
+and add your user to the `realtime` group.
+
+Furthermore, to allow unlimited memory locking on FreeBSD for ordinary users,
+you should add the following entry to `/etc/login.conf`:
+
+    audio:\
+    	:memorylocked=unlimited:\
+    	:tc=default:
+
+Change the login class of your user to `audio` by running `chpass`.
+
+You might need to add the current user to the `wheel` group and
+give read acceess to evdev device nodes by creating `/etc/devd.rules`:
+
+    [localrules=10]
+      add path 'input/*' mode 0640
 
 # Applause Clients (Editor Integration)
 
