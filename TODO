@@ -67,6 +67,9 @@
   runs in its own process (no need to drive the main loop), can potentially work with Broadway (Web)
   backend that could be hacked into Jupyter as well.
   On the other hand, to get values back into Lua, you will have to poll a TCP socket or FIFO anyway.
+* Spectrogram output via ffmpeg.
+  This can be made to work in a window, Jupyter notebook and in the console.
+  Theoretically, we can even support realtime analysis and render into Kitty by piping into mpv.
 * Unit Tests.
   We could use LuaUnit (https://github.com/bluebird75/luaunit) and directly import luaunit.lua
   or add a Git submodule.
@@ -100,5 +103,7 @@
   * EvdevStream:evabs() for retrieving the minimum/maximum values automatically.
 * More options for plotting into terminals via Stream:gnuplot().
   Theoretically we can support xterm and others via braille characters (gnuplot's block terminal).
+  The problem is that we cannot detect automatically whether this is safe and would have to rely on some kind of
+  configuration.
   It might also be viable to do our own graphics via Cairo, which allows SVG output in contrast to
   Tk canvases.

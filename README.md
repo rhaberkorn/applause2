@@ -95,11 +95,12 @@ to expose them as MIDI events.
 
 # Other useful programs
 
-* jack_rec, QJackRcd or Audacity to record sessions
-* midisnoop for diplaying MIDI events
-* jack-keyboard for producing MIDI note events
+* jack_rec, [QJackRcd](https://orouits.github.io/qjackrcd/) or [Audacity](https://www.audacityteam.org/) to record sessions
+* jack_midi_dump or [midisnoop](https://github.com/surfacepatterns/midisnoop) for diplaying MIDI events
+* [jack-keyboard](https://jack-keyboard.sourceforge.net/) for producing MIDI note events
 * [midicontroller](https://sourceforge.net/projects/midicontrol/) for producing MIDI CC events
 * MIDI Tracker ???
+* [rtspeccy](https://www.uninformativ.de/git/rtspeccy) for a realtime spectrogram
 * evtest to find and test HID devices
 * listplugins and analyseplugin to inspect LADSPA plugins
 * dssi_list_plugins and dssi_analyse_plugin to inspect DSSI plugins
