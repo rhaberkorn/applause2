@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include <dirent.h>
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -24,6 +25,12 @@ struct applause_evdev {
 	jack_ringbuffer_t	*buffer;
 	pthread_t		thread;
 };
+
+const char *
+applause_dirent_name(const struct dirent *entry)
+{
+	return entry->d_name;
+}
 
 char *
 applause_evdev_getname(const char *node)

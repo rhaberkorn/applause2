@@ -64,16 +64,6 @@ enum applause_evdev_abs {
  */
 typedef struct __dirstream DIR;
 
-/* FIXME: Does this work on 32-bit? Can this be defined portably? */
-struct dirent {
-	unsigned long	d_ino;       /* Inode number */
-	unsigned long	d_off;       /* Not an offset; see below */
-	unsigned short	d_reclen;    /* Length of this record */
-	unsigned char	d_type;      /* Type of file; not supported
-	                                by all filesystem types */
-	char		d_name[256]; /* Null-terminated filename */
-};
-
 DIR *opendir(const char *name);
 struct dirent *readdir(DIR *dirp);
 int closedir(DIR *dirp);
@@ -96,7 +86,7 @@ function EvdevStream.list()
 	while true do
 		local entry = C.readdir(dir)
 		if entry == nil then break end
-		local filename = ffi.string(entry[0].d_name)
+		local filename = ffi.string(C.applause_dirent_name(entry))
 		local devname = ffi.gc(C.applause_evdev_getname("/dev/input/"..filename), C.free)
 		if devname ~= nil then
 			print(filename:match("%d+$")..": "..ffi.string(devname))
@@ -137,7 +127,7 @@ function EvdevStream:ctor(id, grab)
 		while true do
 			local entry = C.readdir(dir)
 			if entry == nil then error("Evdev device not found!") end
-			node = "/dev/input/"..ffi.string(entry[0].d_name)
+			node = "/dev/input/"..ffi.string(C.applause_dirent_name(entry))
 			local name = ffi.gc(C.applause_evdev_getname(node), C.free)
 			if name ~= nil and ffi.string(name):match(id) then break end
 		end

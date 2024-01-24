@@ -8,6 +8,7 @@ typedef struct applause_evdev_sample {
 
 typedef struct applause_evdev applause_evdev;
 
+const char *applause_dirent_name(const struct dirent *entry);
 char *applause_evdev_getname(const char *node);
 applause_evdev *applause_evdev_new(const char *node, bool grab);
 void applause_evdev_pull(applause_evdev *evdev, applause_evdev_sample *sample);
