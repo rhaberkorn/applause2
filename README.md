@@ -95,7 +95,7 @@ to expose them as MIDI events.
 
 # Other useful programs
 
-* jack_rec, [QJackRcd](https://orouits.github.io/qjackrcd/) or [Audacity](https://www.audacityteam.org/) to record sessions
+* jack_rec, jack-capture, [QJackRcd](https://orouits.github.io/qjackrcd/) or [Audacity](https://www.audacityteam.org/) to record sessions
 * jack_midi_dump or [midisnoop](https://github.com/surfacepatterns/midisnoop) for diplaying MIDI events
 * [jack-keyboard](https://jack-keyboard.sourceforge.net/) for producing MIDI note events
 * [midicontroller](https://sourceforge.net/projects/midicontrol/) for producing MIDI CC events

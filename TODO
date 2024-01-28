@@ -13,7 +13,6 @@
 # Features
 
 * RTNeural support. Should probably be a separate library or an optional dependency.
-  This is important to justify the thesis as related to AI.
   Since it is a C++ library making extensive use of templates, there will have to be
   a small C wrapper.
   Since build time options are important (to choose the backend), it will have to be
@@ -70,6 +69,12 @@
 * Spectrogram output via ffmpeg.
   This can be made to work in a window, Jupyter notebook and in the console.
   Theoretically, we can even support realtime analysis and render into Kitty by piping into mpv.
+* Built-in tracker-like sequencer, ie. stream compiler.
+  Will read a simple DSL where each tab corresponds to an output stream.
+  Rows will be triggered in a given tempo. In each cell, you can place a MIDI note name
+  or directly a number.
+  The result is an automatic note-on/off signal. This wouldn't be compatible with Stream:mvelocity(),
+  though.
 * Unit Tests.
   We could use LuaUnit (https://github.com/bluebird75/luaunit) and directly import luaunit.lua
   or add a Git submodule.
