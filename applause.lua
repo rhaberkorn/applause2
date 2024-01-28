@@ -528,25 +528,6 @@ function Stream:pan(location)
 	end
 end
 
---- Resample stream.
--- This is a linear resampler thanks to the semantics of IndexStream.
--- @number factor
---   The resampling factor.
---   If lower than 1, the stream will be slowed.
---   If higher than 1, it will be sped up.
--- @treturn Stream
--- @todo It would be useful if factor would be StreamableNumber.
--- However the time in line() would consequently also have to be StreamableNumber.
-function Stream:resample(factor)
-	-- FIXME FIXME FIXME
-	-- self:len()-1 is a workaround for a mysterious bug in LuaJIT
-	-- (still not fixed in v2.1 branch) where a comparison in
-	-- IndexStream would mysteriously fail.
-	-- A better workaround would probably be to disable the optimization
-	-- responsible...
-	return self[line(1, math.floor(self:len() / factor), self:len()-1)]
-end
-
 --
 -- Wave forms with names derived from ChucK:
 -- Can be written freq:SawOsc() or Stream.SawOsc(freq)
@@ -1863,6 +1844,70 @@ end
 
 function IndexStream:len()
 	return self.index_stream:len()
+end
+
+ResampleStream = DeriveClass(MuxableStream)
+ResampleStream.sig_last_stream = 1
+
+function ResampleStream:muxableCtor(stream, factor)
+	self.stream = stream
+	self.factor_stream = tostream(factor)
+
+	local len = self.stream:len()
+	if len == math.huge then
+		self.length = self.factor_stream:len()
+	else
+		-- If factor would be a stream, we couldn't predict
+		-- the length of the resulting stream.
+		assert(type(factor) == "number",
+		       "Resampling factor must be a number")
+		self.length = math.floor(len / factor)
+	end
+end
+
+function ResampleStream:gtick()
+	local stream_tick = self.stream:gtick()
+	local factor_tick = self.factor_stream:gtick()
+
+	local cache = {0, stream_tick()}
+	local index = 0
+
+	return function()
+		local factor = factor_tick()
+		if not cache[2] or not factor then return end
+
+		index = index + factor
+		-- NOTE: We must allow some variance for numeric reasons.
+		-- Otherwise we are sometimes missing a single output sample.
+		while index > 1+1e-10 do
+			index = index - 1
+			cache[1], cache[2] = cache[2], stream_tick()
+			if not cache[2] then return end
+		end
+
+		-- linear interpolation
+		return cache[1] + (cache[2] - cache[1])*index
+	end
+end
+
+function ResampleStream:len()
+	return self.length
+end
+
+--- Resample stream.
+-- This uses linear interpolation.
+-- @StreamableNumber factor
+--   The resampling factor.
+--   If lower than 1, the stream will be slowed.
+--   If higher than 1, it will be sped up.
+--   This cannot be smaller than 0.
+--   The factor can only be a mono-stream if the source stream is infinite.
+-- @treturn Stream
+--   If the source stream is infinite, the length is limited by the factor-stream.
+--   Otherwise, it is `self:len()/factor`.
+function Stream:resample(factor)
+--	return self[iota(self:len()/factor) * factor]
+	return ResampleStream:new(self, factor)
 end
 
 MapStream = DeriveClass(MuxableStream)
