@@ -112,3 +112,5 @@
   configuration.
   It might also be viable to do our own graphics via Cairo, which allows SVG output in contrast to
   Tk canvases.
+* Automatically detect whether terminal supports the Kitty graphics protocol:
+  https://sw.kovidgoyal.net/kitty/graphics-protocol/#querying-support-and-available-transmission-mediums
