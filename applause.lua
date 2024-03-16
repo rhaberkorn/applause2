@@ -879,9 +879,12 @@ end
 -- This is not allowed for infinite streams.
 -- Graphics will be displayed inline in Jupyter notebooks and when
 -- using the [kitty](https://sw.kovidgoyal.net/kitty/) terminal emulator.
+-- @string[opt] file
+--   If specified, render to the file name instead of into a window.
+--   The file type is guessed from the file extension.
 -- @warning This requires the feedgnuplot script.
 -- @fixme gnuplot is not the ideal tool for plotting audio data.
-function Stream:gnuplot()
+function Stream:gnuplot(file)
 	if self:len() == math.huge then
 		error("Cannot plot infinite stream")
 	end
@@ -889,7 +892,10 @@ function Stream:gnuplot()
 	local cmd = "feedgnuplot --exit --lines --ymin -1 --ymax 1 --domain"
 
 	local svg_file
-	if _G._send_display_data then
+	if file then
+		assert(not file:find("'"))
+		cmd = cmd.." --hardcopy '"..file.."'"
+	elseif _G._send_display_data then
 		-- Some extremely crude support for plotting directly into Jupyter ILua cells.
 		-- NOTE: With io.popen() we cannot read and write to the pipe at the
 		-- same time, so we must dump the file to disk.
