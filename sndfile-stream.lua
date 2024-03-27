@@ -113,7 +113,7 @@ function Stream:save(filename, format)
 
 	local frame_buffer = sndfile.frame_type(channels)
 
-	self:foreach(function(frame)
+	for frame in self:iter() do
 		-- NOTE: This should be (hopefully) automatically
 		-- unrolled for single-channel streams
 		-- Otherwise each loop copies an entire frame.
@@ -129,7 +129,7 @@ function Stream:save(filename, format)
 		-- (i.e. multichannel streams)
 		-- FIXME: Check return value
 		hnd:writef(frame_buffer)
-	end)
+	end
 
 	hnd:close()
 end

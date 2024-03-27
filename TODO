@@ -52,7 +52,7 @@
   Perhaps bundle https://github.com/Xpra-org/xpra/.
   The HTML client might even allow integrating Tk windows into Jupyter cells?
 * Widget toolkit integration.
-  We could optionally integrate Gtk (lgi) or Tcl and drive their main loops from Stream:foreach() or Stream:play()
+  We could optionally integrate Gtk (lgi) or Tcl and drive their main loops from Stream:iter() or Stream:play()
   whenever their modules are loaded.
   This would allow creating GUIs to control streams without having to go via external MIDI
   applications. There would also have to be a new Stream class that reads values always from the
@@ -114,3 +114,6 @@
   Tk canvases.
 * Automatically detect whether terminal supports the Kitty graphics protocol:
   https://sw.kovidgoyal.net/kitty/graphics-protocol/#querying-support-and-available-transmission-mediums
+* Two C non-inlineable function calls per sample due to applause_push_sample() could be avoided by including our
+  own lockless ring-buffer implementation.
+* Document ZipStream semantics - see chapter Stream Algebra in my thesis.
