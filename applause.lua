@@ -2436,7 +2436,7 @@ end
 -- @param v Value to convert.
 -- @treturn Stream
 -- @usage tostream(440):SinOsc():play()
--- @usage tostream{"A4", "B4", "C4"}:mtof()
+-- @usage tostream{"A4", "B4", "C4"}:ntof()
 function tostream(v)
 	if type(v) == "table" then
 		if v.is_a_stream then return v end
