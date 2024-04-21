@@ -883,11 +883,13 @@ end
 -- Graphics will be displayed inline in Jupyter notebooks and when
 -- using the [kitty](https://sw.kovidgoyal.net/kitty/) terminal emulator.
 -- @string[opt] file
---   If specified, render to the file name instead of into a window.
---   The file type is guessed from the file extension.
+--   If specified, render to the file name instead of into a window or GUI.
+--   The terminal type is guessed from the file extension.
+-- @string[opt] terminal
+--   If file is given, this specifies the terminal type (file type).
 -- @warning This requires the feedgnuplot script.
 -- @fixme gnuplot is not the ideal tool for plotting audio data.
-function Stream:gnuplot(file)
+function Stream:gnuplot(file, terminal)
 	if self:len() == math.huge then
 		error("Cannot plot infinite stream")
 	end
@@ -898,6 +900,7 @@ function Stream:gnuplot(file)
 	if file then
 		assert(not file:find("'"))
 		cmd = cmd.." --hardcopy '"..file.."'"
+		if terminal then cmd = cmd.." --terminal '"..terminal.."'" end
 	elseif _G._send_display_data then
 		-- Some extremely crude support for plotting directly into Jupyter ILua cells.
 		-- NOTE: With io.popen() we cannot read and write to the pipe at the
