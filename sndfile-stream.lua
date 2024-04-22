@@ -4,7 +4,7 @@
 local sndfile = require "sndfile"
 
 --- Stream for reading a sound file.
--- This can be used with all file types supported by [libsndfile](http://www.mega-nerd.com/libsndfile/#Features).
+-- This can be used with all file types supported by [libsndfile](http://libsndfile.github.io/libsndfile/#features).
 -- @type SndfileStream
 SndfileStream = DeriveClass(Stream)
 
@@ -18,7 +18,7 @@ SndfileStream = DeriveClass(Stream)
 --   Number of channels in file.
 --   This is ignored unless reading files in ffi.C.SF_FORMAT_RAW.
 -- @tparam[opt] SF_FORMAT format
---   Format of file to read ([C type](http://www.mega-nerd.com/libsndfile/api.html)).
+--   Format of file to read ([C type](http://libsndfile.github.io/libsndfile/api.html)).
 --   If omitted, this guessed from the file extension.
 -- @treturn SndfileStream|MuxStream
 -- @see Stream:save
