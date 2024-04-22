@@ -2477,7 +2477,7 @@ end
 -- @fixme Could v1 and v2 be StreamableNumbers?
 function curve(v1, alpha, t, v2)
 	-- Derived from RTcmix' "curve" table
-	-- See http://www.music.columbia.edu/cmc/Rtcmix/docs/scorefile/maketable.html#curve
+	-- See https://rtcmix.org/reference/scorefile/maketable.html#curve
 	v2 = v2 or 0
 	if not alpha or alpha == 0 then return line(v1, t, v2) end
 
