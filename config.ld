@@ -3,7 +3,7 @@
 project = "Applause"
 description = "LuaJIT-based real-time synthesizer, based on a stream algebra"
 
-format = "discount"
+format = "markdown"
 readme = "README.md"
 examples = "examples/"
 

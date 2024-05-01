@@ -12,6 +12,13 @@
 
 # Features
 
+* Feedback loops are very hard to do. Perhaps there should be a
+  Stream:feedAdd() that returns the source stream but adds the value into a given
+  DelayStream. Alternatively, there should be a VarStream() which would be similar to Stream()
+  but always returning the self.value. Stream:feed() takes a VarStream.
+* dbtorms(), rmstodb().
+  See shepard.lua.
+  https://forum.pdpatchrepo.info/topic/11236/dbtorms
 * RTNeural support. Should probably be a separate library or an optional dependency.
   Since it is a C++ library making extensive use of templates, there will have to be
   a small C wrapper.
@@ -114,6 +121,8 @@
   Tk canvases.
 * Automatically detect whether terminal supports the Kitty graphics protocol:
   https://sw.kovidgoyal.net/kitty/graphics-protocol/#querying-support-and-available-transmission-mediums
-* Two C non-inlineable function calls per sample due to applause_push_sample() could be avoided by including our
-  own lockless ring-buffer implementation.
 * Document ZipStream semantics - see chapter Stream Algebra in my thesis.
+* Add list of features as in Conclusion of my thesis.
+* Markdown table in midi.lua.
+  This appears to be broken even with format='discount' and format='lunamark' (0.6.0).
+

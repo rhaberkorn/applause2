@@ -14,9 +14,10 @@ cdef_include "midi.h"
 -- MIDI events are 24-bit words with the
 -- [following structure](https://www.codecademy.com/resources/docs/markdown/tables):
 --
--- | Bit 23-16 | 15-8 | 7-4 | 3-0 |
--- | --------- | ---- | --- | --- |
--- | Controller value / velocity | Controller number / key | Command code | Channel number |
+-- <table border="1">
+-- <tr><th>Bit 23-16<th>15-8<th>7-4<th>3-0
+-- <tr><td>Controller value / velocity<td>Controller number / key<td>Command code<td>Channel number
+-- </table>
 --
 -- MIDI streams can and are usually ticked at the sample rate but will generate 0 words
 -- in absence of events.

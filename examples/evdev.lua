@@ -8,5 +8,5 @@ NoiseStream:BPF(trackball:evrel('REL_X'):scale(100,5000), trackball:evrel('REL_Y
 touchpad = EvdevStream("TouchPad")
 touchpad:evabs('ABS_X', 1232, 5712):scale(440,880):SinOsc():gain(touchpad:evabs('ABS_Y', 1074, 4780):scale(1)):play()
 
-# FIXME: Make a small polyphonic keyboard
+-- FIXME: Make a small polyphonic keyboard
 EvdevStream(10):evkey(16):instrument(Stream.SinOsc(440)):play()

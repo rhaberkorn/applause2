@@ -23,7 +23,8 @@ To compile the project, type:
     make
 
 Up-to-date documentation is available at the [website](http://rhaberkorn.github.io/applause2).
-In case you want to build it manually, install the `lua-ldoc` and `lua-discount` packages and type:
+In case you want to build it manually, install [LDoc](https://stevedonovan.github.io/ldoc/)
+(for instance `luarocks install ldoc`) and type:
 
     make doc
 
