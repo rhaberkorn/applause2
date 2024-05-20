@@ -5,8 +5,8 @@ CFLAGS = -std=c99 -Wall -O2 -g
 LUA_CFLAGS = $(shell pkg-config --cflags luajit)
 LUA_LDFLAGS = $(shell pkg-config --libs luajit)
 
-READLINE_CFLAGS =
-READLINE_LDFLAGS = -lreadline -lhistory
+READLINE_CFLAGS = $(shell pkg-config --cflags readline)
+READLINE_LDFLAGS = $(shell pkg-config --libs readline) -lhistory
 
 JACK_CFLAGS := $(shell pkg-config --cflags jack)
 JACK_LDFLAGS := $(shell pkg-config --libs jack)

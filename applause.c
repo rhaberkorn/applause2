@@ -1,4 +1,3 @@
-#define _XOPEN_SOURCE
 //#define _POSIX_C_SOURCE 200112
 #define _GNU_SOURCE
 
