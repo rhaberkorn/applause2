@@ -15,6 +15,10 @@ jobs:
 
     - name: Update Repositories
       run: sudo apt-get update
+    - name: Install Build Dependencies
+      run: |
+        # NOTE: The version from LuaRocks is just as old.
+        sudo apt-get install -y rename lua-ldoc make
 
     - name: Build AppImage
       run: |
@@ -22,18 +26,19 @@ jobs:
                 "https://github.com/AppImageCommunity/pkg2appimage/releases/download/continuous/pkg2appimage--x86_64.AppImage"
         chmod +x pkg2appimage.AppImage
         ./pkg2appimage.AppImage AppImage.yml
-        chmod a+x out/*.AppImage
+        cd out
+        rename 's/.*\.glibc/Applause-nightly-glibc/' *.AppImage
+        chmod a+x *.AppImage
     - name: Archive AppImage
       uses: pyTooling/Actions/releaser@v1.0.5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         tag: nightly
+        rm: true
         files: out/*.AppImage
 
     - name: Build Lua Documentation
       run: |
-        # NOTE: The version from LuaRocks is just as old.
-        sudo apt-get install -y lua-ldoc make
         make doc
     - name: Publish Website
       run: |

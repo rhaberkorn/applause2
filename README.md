@@ -1,20 +1,22 @@
+[![Nightly Builds](https://github.com/rhaberkorn/applause2/actions/workflows/nightly.yml/badge.svg)](https://github.com/rhaberkorn/applause2/releases/tag/nightly)
+
 # Applause
 
 ## Installation
 
 The easiest way to install Applause on Linux is to install a
-prebuilt AppImage.
-It should run on any x86_64 Linux system that has the jackd2 daemon
-installed and running.
+prebuilt [AppImage](https://appimage.org/) from a [nightly build](https://github.com/rhaberkorn/applause2/releases/tag/nightly).
+It should run on any x86_64 Linux system that has the [JACK](https://jackaudio.org/)
+daemon (jackd2/jackdmp) installed and running.
 The AppImage supports all three modes of running Applause:
 
-1. `./Applause.AppImage` by default launches a Jupyter notebook on HTTP port 8888.
+1. `./Applause-nightly-glibc2.29-x86_64.AppImage` by default launches a Jupyter notebook on HTTP port 8888.
    Additional parameters are passed to jupyter.
    Use the `APPLAUSE_OPTS` environment variable to pass commandline parameters to Applause itself.
-2. `./Applause.AppImage ilua` launches a Jupyter/ILua console in the terminal.
+2. `./Applause-nightly-glibc2.29-x86_64.AppImage ilua` launches a Jupyter/ILua console in the terminal.
    Additional parameters are passed to ILua.
    Use the `APPLAUSE_OPTS` environment variable to pass commandline parameters to Applause itself.
-3. `./Applause.AppImage cli` launches a plain Applause shell (Lua prompt).
+3. `./Applause-nightly-glibc2.29-x86_64.AppImage cli` launches a plain Applause shell (Lua prompt).
    Additional parameters are directly passed to Applause, but the `APPLAUSE_OPTS` environment variable
    can also provide parameters.
    This also mode also allows executing scripts, but currently you will have to pass absolute paths.
