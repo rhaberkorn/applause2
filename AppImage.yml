@@ -15,27 +15,40 @@ ingredients:
     - feedgnuplot
     # FIXME: No matter what, we cannot get rid of gnuplot-qt, pulled in by feedgnuplot...
     #- gnuplot-x11
+    # FIXME: Why is this required in the image?
+    - python3-venv
   dist: focal
   sources:
     - deb http://archive.ubuntu.com/ubuntu/ focal main universe
   script:
-    - wget -O applause.tar.gz -c "https://github.com/rhaberkorn/applause2/archive/refs/heads/master.tar.gz"
-    # Will leave an "applause2-master" directory.
-    - tar xzf applause.tar.gz
     # NOTE: The LuaJIT from Ubuntu is too outdated.
     - wget -O luajit.tar.gz -c "https://github.com/LuaJIT/LuaJIT/archive/refs/heads/v2.1.tar.gz"
     # Will leave a "LuaJIT-2.1" directory.
     - tar xzf luajit.tar.gz
+    - wget -O applause.tar.gz -c "https://github.com/rhaberkorn/applause2/archive/refs/heads/master.tar.gz"
+    # Will leave an "applause2-master" directory.
+    - tar xzf applause.tar.gz
+    # Install build-time dependencies
+    - sudo apt-get install -y build-essential lua5.1 libreadline-dev libjack-jackd2-dev virtualenv
 
 script:
-  # Install build-time dependencies
-  - sudo apt-get install -y build-essential lua5.1 libreadline-dev libjack-jackd2-dev
   - make -C ../LuaJIT-2.1 DESTDIR=`pwd` PREFIX=/usr install
   - make -C ../applause2-master LUA_CFLAGS="-I`pwd`/usr/include/luajit-2.1" LUA_LDFLAGS="-L`pwd`/usr/lib -lluajit-5.1"
   - cp -r ../applause2-master ./usr/share/applause
   # Will be required by the ILua fork
   - ln -s ../share/applause/ilua-wrapper.sh ./usr/bin/lua
-  - ln -s ../share/applause/ilua-wrapper.sh ./usr/bin/applause
+  # Install Jupyter notebooks...
+  - virtualenv --python=python3 ./usr
+  - ./usr/bin/pip3 install --no-input notebook twisted==22.10.0 git+https://github.com/rhaberkorn/ilua.git@improvements
+  # This custom launcher starts the notebook by default but allows launching the plain CLI as well:
+  - cat >./usr/bin/applause <<EOF
+  - #!/bin/sh
+  - cd ~/
+  - if [ "\$1" = cli ]; then shift; exec lua "\$@"; fi
+  - if [ "\$1" = ilua ]; then shift; exec ilua "\$@"; fi
+  - exec jupyter notebook --MultiKernelManager.default_kernel_name=lua "\$@"
+  - EOF
+  - chmod a+x ./usr/bin/applause
   # Some thinning - remove unneeded files
   - find . -name "*.a" -delete
   - rm -rf ./usr/share/doc
@@ -45,7 +58,7 @@ script:
   - Type=Application
   - Categories=Audio
   - Icon=applause
-  - Name=Applause (CLI)
+  - Name=Applause
   - Exec=applause %u
   - Terminal=true
   - EOF

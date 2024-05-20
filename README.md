@@ -1,8 +1,28 @@
-# Applause 2
+# Applause
 
 ## Installation
 
-You have to manually build and install LuaJIT v2.1:
+The easiest way to install Applause on Linux is to install a
+prebuilt AppImage.
+It should run on any x86_64 Linux system that has the jackd2 daemon
+installed and running.
+The AppImage supports all three modes of running Applause:
+
+1. `./Applause.AppImage` by default launches a Jupyter notebook on HTTP port 8888.
+   Additional parameters are passed to jupyter.
+   Use the `APPLAUSE_OPTS` environment variable to pass commandline parameters to Applause itself.
+2. `./Applause.AppImage ilua` launches a Jupyter/ILua console in the terminal.
+   Additional parameters are passed to ILua.
+   Use the `APPLAUSE_OPTS` environment variable to pass commandline parameters to Applause itself.
+3. `./Applause.AppImage cli` launches a plain Applause shell (Lua prompt).
+   Additional parameters are directly passed to Applause, but the `APPLAUSE_OPTS` environment variable
+   can also provide parameters.
+   This also mode also allows executing scripts, but currently you will have to pass absolute paths.
+
+### Manual Installation
+
+You are recommended to manually build and install LuaJIT v2.1
+since distributions usually ship outdated versions:
 
     git clone -b v2.1 https://luajit.org/git/luajit.git
     cd luajit
@@ -115,17 +135,14 @@ First, install ILua into a Python environment
 (see also this [ILua ticket](https://github.com/guysv/ilua/issues/28)):
 
 ```bash
-git clone -b improvements --recurse-submodules https://github.com/rhaberkorn/ilua.git
-cd ilua
 python3 -m venv env
 . env/bin/activate
-pip install twisted==22.10.0 .
+pip install twisted==22.10.0 git+https://github.com/rhaberkorn/ilua.git@improvements
 ```
 
 You can now directly run an Applause Jupyter Console session:
 
 ```bash
-cd ~/applause
 ilua --lua-interpreter=./applause
 ```
 
@@ -141,7 +158,7 @@ You can symlink this to `lua` in the Python environment to make Applause the def
 ILua interpreter in this Python environment:
 
 ```bash
-ln -s ~/applause/ilua-wrapper.sh env/bin/lua
+ln -s `pwd`/ilua-wrapper.sh env/bin/lua
 ```
 
 If you would like to launch a Jupyter Notebook (Web UI!), first install the following Pip package:
@@ -165,5 +182,4 @@ visiting http://localhost:8888/.
 Please note the following restrictions/bugs:
 
 * You cannot publicly host the Jupyter Notebook as the sound is generated on the host machine.
-  Similarily, it would be tricky to wrap everything in a Docker container.
 * The output of some functions like Stream:toplot() is garbled.
