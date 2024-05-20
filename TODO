@@ -53,11 +53,6 @@
   Can we change what index.html points to?
   Alternatively, we could make a simple browser-side forwarding.
 * Allow limited operation without a running Jack server.
-* Package everything including Jupyter in Docker container.
-  This requires mounting via -v /dev/shm:/dev/shm:rw -u $(id -u):$(id -g).
-  Ideally, this will work with X11 windows as well.
-  Perhaps bundle https://github.com/Xpra-org/xpra/.
-  The HTML client might even allow integrating Tk windows into Jupyter cells?
 * Widget toolkit integration.
   We could optionally integrate Gtk (lgi) or Tcl and drive their main loops from Stream:iter() or Stream:play()
   whenever their modules are loaded.
@@ -73,6 +68,8 @@
   runs in its own process (no need to drive the main loop), can potentially work with Broadway (Web)
   backend that could be hacked into Jupyter as well.
   On the other hand, to get values back into Lua, you will have to poll a TCP socket or FIFO anyway.
+  Perhaps bundle https://github.com/Xpra-org/xpra/.
+  The HTML client might even allow integrating Tk windows into Jupyter cells?
 * Spectrogram output via ffmpeg.
   This can be made to work in a window, Jupyter notebook and in the console.
   Theoretically, we can even support realtime analysis and render into Kitty by piping into mpv.

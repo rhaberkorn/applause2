@@ -12,7 +12,7 @@ You have to manually build and install LuaJIT v2.1:
 Furthermore, install the following dependencies (Ubuntu):
 
     sudo apt-get install build-essential libreadline-dev libjack-jackd2-dev \
-                         libsndfile1 libasound2 feedgnuplot
+                         libsndfile1-dev libasound2-dev feedgnuplot
 
 On FreeBSD, you will need the following packages/ports:
 
