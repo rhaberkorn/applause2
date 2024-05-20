@@ -17,8 +17,10 @@ jobs:
       run: sudo apt-get update
     - name: Install Build Dependencies
       run: |
-        # NOTE: The version from LuaRocks is just as old.
-        sudo apt-get install -y rename lua-ldoc make
+        # NOTE: The LDoc version from LuaRocks is just as old.
+        # Also, it does not appear to contain a Markdown plugin as is claimed
+        # in the documentation.
+        sudo apt-get install -y rename lua-ldoc lua-discount
 
     - name: Build AppImage
       run: |
@@ -37,9 +39,12 @@ jobs:
         rm: true
         files: out/*.AppImage
 
+    # We apparently cannot change what page is shown in index.html,
+    # so we rename it to api.html and redirect in index.html.
     - name: Build Lua Documentation
       run: |
-        make doc
+        ldoc -o api .
+        echo '<html><head><meta http-equiv="refresh" content="0; URL=topics/README.md.html"/>' >doc/index.html
     - name: Publish Website
       run: |
         cd doc
