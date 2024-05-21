@@ -43,10 +43,12 @@ script:
   # This custom launcher starts the notebook by default but allows launching the plain CLI as well:
   - cat >./usr/bin/applause <<EOF
   - #!/bin/sh
+  - HERE="$(dirname "$(readlink -f "${0}")")"
+  - APPDIR=$(readlink -f "$HERE/../../")
   - cd ~/
   - if [ "\$1" = cli ]; then shift; exec lua "\$@"; fi
-  - if [ "\$1" = ilua ]; then shift; exec ilua "\$@"; fi
-  - exec jupyter notebook --MultiKernelManager.default_kernel_name=lua "\$@"
+  - if [ "\$1" = ilua ]; then shift; exec python3 "$APPDIR/usr/bin/ilua" "\$@"; fi
+  - exec python3 "$APPDIR/usr/bin/jupyter" notebook --MultiKernelManager.default_kernel_name=lua "\$@"
   - EOF
   - chmod a+x ./usr/bin/applause
   # Some thinning - remove unneeded files
