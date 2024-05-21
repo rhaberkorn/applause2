@@ -40,15 +40,17 @@ script:
   # Install Jupyter notebooks...
   - virtualenv --python=python3 ./usr
   - ./usr/bin/pip3 install --no-input notebook twisted==22.10.0 git+https://github.com/rhaberkorn/ilua.git@improvements
-  # This custom launcher starts the notebook by default but allows launching the plain CLI as well:
-  - cat >./usr/bin/applause <<EOF
+  # This custom launcher starts the notebook by default but allows launching the plain CLI as well.
+  # NOTE: The Pip-installed hash-bang lines hard code paths from the build system.
+  - cat >./usr/bin/applause <<\EOF
   - #!/bin/sh
-  - HERE="$(dirname "$(readlink -f "${0}")")"
+  - HERE="$(dirname "$(readlink -f "$0")")"
   - APPDIR=$(readlink -f "$HERE/../../")
+  - export PYTHONPATH="$APPDIR/usr/lib/python3.8/site-packages"
   - cd ~/
-  - if [ "\$1" = cli ]; then shift; exec lua "\$@"; fi
-  - if [ "\$1" = ilua ]; then shift; exec python3 "$APPDIR/usr/bin/ilua" "\$@"; fi
-  - exec python3 "$APPDIR/usr/bin/jupyter" notebook --MultiKernelManager.default_kernel_name=lua "\$@"
+  - if [ "$1" = cli ]; then shift; exec lua "$@"; fi
+  - if [ "$1" = ilua ]; then shift; exec python3 "$APPDIR/usr/bin/ilua" "$@"; fi
+  - exec python3 "$APPDIR/usr/bin/jupyter" notebook --MultiKernelManager.default_kernel_name=lua "$@"
   - EOF
   - chmod a+x ./usr/bin/applause
   # Some thinning - remove unneeded files
