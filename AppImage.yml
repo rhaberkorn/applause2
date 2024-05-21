@@ -50,7 +50,7 @@ script:
   - cd ~/
   - if [ "$1" = cli ]; then shift; exec lua "$@"; fi
   - if [ "$1" = ilua ]; then shift; exec python3 "$APPDIR/usr/bin/ilua" "$@"; fi
-  - exec python3 "$APPDIR/usr/bin/jupyter" notebook --MultiKernelManager.default_kernel_name=lua "$@"
+  - exec python3 "$APPDIR/usr/bin/jupyter-notebook" --MultiKernelManager.default_kernel_name=lua "$@"
   - EOF
   - chmod a+x ./usr/bin/applause
   # Some thinning - remove unneeded files
