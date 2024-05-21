@@ -2,6 +2,35 @@
 
 # Applause
 
+Applause is a [LuaJIT](https://luajit.org/)-based real-time audio programming environment
+based on a stream algebra.
+Think of it as APL on lazily evaluated streams of audio samples.
+In "Applause" there is no distinction between sample and control rate - every
+stream may provide control data at the sample rate.
+Also, there is no distinction between programming language and audio synthesis engine -
+all calculations are performed by JIT-compiled Lua code, which greatly simplifies
+the architecture and possibilities to extend the system by "end users".
+On the downside, it requires buffering between the real-time audio thread and the
+synthesis code which manifests in additional latency.
+"Applause" currently supports the following features:
+
+* well known operations from functional and vector-based programming languages
+* various oscillators for sinusoidal, sawtooth, square and triangular wave forms
+* hull curve stream generators (for instance ADSR curves for instruments)
+* white, pink and brown noise generators
+* plotting audio samples via ASCII art and Gnuplot
+* reading and writing audio files - also in "as fast as possible" (non-realtime) mode
+* infinite impulse response filters (LPF, HPF, BPF, BRF)
+* Fast Fourier Transform (FFT and IFFT) - also in real time (STFT)
+* external audio plugins via DSSI/LADSPA
+* MIDI and HID device support to generate control signals
+* CLI, scripting/batch mode
+* simple integration into text editors and IDEs
+* Jupyter notebook support
+* Linux and FreeBSD are supported and the JACK audio daemon is strictly required
+
+See also the TODO file for a list of bugs, possible features and improvements.
+
 ## Installation
 
 The easiest way to install Applause on Linux is to install a
@@ -21,7 +50,7 @@ The AppImage supports all three modes of running Applause:
    can also provide parameters.
    This also mode also allows executing scripts, but currently you will have to pass absolute paths.
 
-### Manual Installation
+### Building from Source
 
 You are recommended to manually build and install LuaJIT v2.1
 since distributions usually ship outdated versions:
@@ -54,9 +83,7 @@ The generated documentation will be generated in the `doc/` subdirectory.
 
 ## Usage
 
-Start qjackctl.
-
-TODO: How to use jack-plumbing?
+Start JACK daemon (for instance via qjackctl).
 
     ./applause -o 2
 
@@ -98,9 +125,10 @@ give read acceess to evdev device nodes by creating `/etc/devd.rules`:
 
 # Applause Clients (Editor Integration)
 
-    echo -ne "25   \nStream.SinOsc(440):play()" | socat -,ignoreeof TCP:127.0.0.1:10000"
+    echo -ne "25   \nStream.SinOsc(440):play()" | socat -,ignoreeof TCP:127.0.0.1:10000
 
-See also `client.tes` for a [SciTECO](https://github.com/rhaberkorn/sciteco) integration.
+See also [client.tes](https://github.com/rhaberkorn/applause2/blob/master/client.tes)
+for a [SciTECO](https://github.com/rhaberkorn/sciteco) integration.
 
 # Joysticks and Gamepads
 
@@ -160,7 +188,7 @@ You can symlink this to `lua` in the Python environment to make Applause the def
 ILua interpreter in this Python environment:
 
 ```bash
-ln -s `pwd`/ilua-wrapper.sh env/bin/lua
+ln -s $(pwd)/ilua-wrapper.sh env/bin/lua
 ```
 
 If you would like to launch a Jupyter Notebook (Web UI!), first install the following Pip package:
