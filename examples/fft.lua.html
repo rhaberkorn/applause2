@@ -1,0 +1,118 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<head>
+    <title>Reference</title>
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
+</head>
+<body>
+
+<div id="container">
+
+<div id="product">
+	<div id="product_logo"></div>
+	<div id="product_name"><big><b></b></big></div>
+	<div id="product_description"></div>
+</div> <!-- id="product" -->
+
+
+<div id="main">
+
+
+<!-- Menu -->
+
+<div id="navigation">
+<br/>
+<h1>Applause</h1>
+
+
+
+
+<h2>Examples</h2>
+<ul class="nowrap">
+  <li><a href="../examples/evdev.lua.html">evdev.lua</a></li>
+  <li><strong>fft.lua</strong></li>
+  <li><a href="../examples/shepard.lua.html">shepard.lua</a></li>
+</ul>
+<h2>Modules</h2>
+<ul class="nowrap">
+  <li><a href="../api.html">applause</a></li>
+</ul>
+<h2>Topics</h2>
+<ul class="">
+  <li><a href="../topics/README.md.html">README</a></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+    <h2>fft.lua</h2>
+<pre>
+<span class="comment">-- Plot magnitude of frequency spectrum.
+</span><span class="comment">-- Exactly 20 sine cycles in 1024 samples.
+</span><span class="comment">-- So this does not need windowing.
+</span>tostream(magnitude(FFT(Stream.SinOsc(samplerate*<span class="number">20</span>/<span class="number">1024</span>):sub(<span class="number">1</span>, <span class="number">1024</span>)))):gnuplot()
+
+IFFT(FFT(Stream.SinOsc(samplerate*<span class="number">20</span>/<span class="number">1024</span>):sub(<span class="number">1</span>, <span class="number">1024</span>))):gnuplot()
+
+<span class="comment">-- Here the results are much better with a windowing function.
+</span><span class="comment">-- For some strange reason, the window is not necessary to reconstruct the original wave
+</span><span class="comment">-- via IFFT().
+</span>tostream(magnitude(FFT(Hamming(Stream.SinOsc(samplerate*<span class="number">20.5</span>/<span class="number">1024</span>):sub(<span class="number">1</span>, <span class="number">1024</span>))))):gnuplot()
+
+<span class="comment">-- Phase plotting
+</span>tostream(phase(FFT(Stream.SinOsc(samplerate*<span class="number">20</span>/<span class="number">1024</span>, <span class="number">0.7</span>):sub(<span class="number">1</span>, <span class="number">1024</span>)))):gnuplot()
+
+<span class="comment">-- Naive pitch shifting
+</span><span class="comment">-- This is not easy to get right. See https://www.reddit.com/r/DSP/comments/k6t24c/pitch_shifting_algorithm_in_frequency_domain/
+</span>haiku = SndfileStream(<span class="string">"examples/haiku.flac"</span>)
+haiku:FFT(<span class="number">1024</span>):map(<span class="keyword">function</span>(spectrum)
+	<span class="global">assert</span>(#spectrum == <span class="number">513</span>)
+	<span class="comment">-- NOTE: We cannot use Stream:resample() as it won't work with complex samples.
+</span>	<span class="keyword">for</span> i = <span class="number">1</span>, <span class="number">512</span>/<span class="number">2</span> <span class="keyword">do</span> spectrum[i] = spectrum[i*<span class="number">2</span>] <span class="keyword">end</span>
+	<span class="keyword">for</span> i = <span class="number">512</span>/<span class="number">2</span>+<span class="number">1</span>, <span class="number">512</span> <span class="keyword">do</span> spectrum[i] = <span class="number">0</span>i <span class="keyword">end</span>
+	<span class="keyword">return</span> spectrum
+<span class="keyword">end</span>):IFFT(<span class="number">1024</span>):play()
+
+<span class="comment">-- Noisy stream
+</span>noisy = Stream.SinOsc(<span class="number">440</span>):mix(NoiseStream, <span class="number">0.4</span>)
+tostream(magnitude(FFT(Hamming(noisy:sub(<span class="number">1</span>, <span class="number">1024</span>))))):mul(<span class="number">0.05</span>):gnuplot()
+
+<span class="comment">-- Naive noise cancelling
+</span>noisy:FFT(<span class="number">1024</span>, Hamming):map(<span class="keyword">function</span>(spectrum)
+	<span class="global">assert</span>(#spectrum == <span class="number">513</span>)
+	<span class="keyword">for</span> i = <span class="number">1</span>, #spectrum <span class="keyword">do</span>
+		<span class="keyword">if</span> (spectrum[i].re^<span class="number">2</span> + spectrum[i].im^<span class="number">2</span>)^.<span class="number">5</span>*<span class="number">0.05</span> &lt; <span class="number">0.8</span> <span class="keyword">then</span> spectrum[i] = <span class="number">0</span>i <span class="keyword">end</span>
+	<span class="keyword">end</span>
+	<span class="keyword">return</span> spectrum
+<span class="keyword">end</span>):IFFT(<span class="number">1024</span>):play()
+
+<span class="comment">-- Pitch Tracking
+</span><span class="comment">-- See also: http://blog.bjornroche.com/2012/07/frequency-detection-using-fft-aka-pitch.html
+</span>opera = SndfileStream(<span class="string">"examples/opera.flac"</span>)
+opera:LPF(<span class="number">10000</span>):FFT(<span class="number">1024</span>, Hanning):map(<span class="keyword">function</span>(spectrum)
+	<span class="keyword">local</span> size = (#spectrum-<span class="number">1</span>)*<span class="number">2</span>
+	<span class="keyword">local</span> peak_i, peak_val
+	<span class="keyword">for</span> i = <span class="number">1</span>, #spectrum <span class="keyword">do</span>
+		<span class="comment">-- We don't have to take the square root to find the peak
+</span>		<span class="keyword">local</span> val = spectrum[i].re^<span class="number">2</span> + spectrum[i].im^<span class="number">2</span>
+		<span class="keyword">if</span> <span class="keyword">not</span> peak_val <span class="keyword">or</span> val &gt; peak_val <span class="keyword">then</span>
+			peak_i, peak_val = i, val
+		<span class="keyword">end</span>
+	<span class="keyword">end</span>
+	<span class="comment">-- Return peak as frequency
+</span>	<span class="keyword">return</span> tostream((peak_i-<span class="number">1</span>)*samplerate/size):sub(<span class="number">1</span>, size)
+<span class="keyword">end</span>):ravel():div(<span class="number">10000</span>):crush(<span class="number">7</span>):mul(<span class="number">10000</span>):SqrOsc():crush():play()</pre>
+
+
+</div> <!-- id="content" -->
+</div> <!-- id="main" -->
+<div id="about">
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.6</a></i>
+<i style="float:right;">Last updated 2024-05-21 18:48:07 </i>
+</div> <!-- id="about" -->
+</div> <!-- id="container" -->
+</body>
+</html>

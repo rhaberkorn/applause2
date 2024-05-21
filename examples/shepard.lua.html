@@ -1,0 +1,115 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<head>
+    <title>Reference</title>
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
+</head>
+<body>
+
+<div id="container">
+
+<div id="product">
+	<div id="product_logo"></div>
+	<div id="product_name"><big><b></b></big></div>
+	<div id="product_description"></div>
+</div> <!-- id="product" -->
+
+
+<div id="main">
+
+
+<!-- Menu -->
+
+<div id="navigation">
+<br/>
+<h1>Applause</h1>
+
+
+
+
+<h2>Examples</h2>
+<ul class="nowrap">
+  <li><a href="../examples/evdev.lua.html">evdev.lua</a></li>
+  <li><a href="../examples/fft.lua.html">fft.lua</a></li>
+  <li><strong>shepard.lua</strong></li>
+</ul>
+<h2>Modules</h2>
+<ul class="nowrap">
+  <li><a href="../api.html">applause</a></li>
+</ul>
+<h2>Topics</h2>
+<ul class="">
+  <li><a href="../topics/README.md.html">README</a></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+    <h2>shepard.lua</h2>
+<pre>
+<span class="comment">--
+</span><span class="comment">-- adapted from ChucK's shepard.ck (Ge Wang, 2016)
+</span><span class="comment">--
+</span><span class="keyword">local</span> min, max, exp = <span class="global">math</span>.min, <span class="global">math</span>.max, <span class="global">math</span>.exp
+
+<span class="keyword">local</span> <span class="keyword">function</span> dbtorms(f)
+	f = min(max(f, <span class="number">0</span>), <span class="number">485</span>)
+	<span class="keyword">return</span> exp((<span class="number">2.302585092994</span> * <span class="number">0.05</span>) * (f-<span class="number">100</span>))
+<span class="keyword">end</span>
+
+<span class="keyword">local</span> SQRT_PI2 = <span class="global">math</span>.sqrt(<span class="number">2</span>*<span class="global">math</span>.pi)
+<span class="keyword">local</span> <span class="keyword">function</span> gauss(x, mu, sd)
+	<span class="keyword">return</span> (<span class="number">1.0</span> / (sd*SQRT_PI2)) * exp(-(x-mu)^<span class="number">2</span> / (<span class="number">2</span>*sd^<span class="number">2</span>))
+<span class="keyword">end</span>
+
+<span class="comment">-- built-in mtof() caches all 128 MIDI notes
+</span><span class="keyword">local</span> <span class="keyword">function</span> mtof_raw(note)
+	<span class="keyword">return</span> <span class="number">440</span> * <span class="number">2</span>^((note - <span class="number">69</span>)/<span class="number">12</span>)
+<span class="keyword">end</span>
+
+<span class="comment">-- mean for normal intensity curve
+</span><span class="keyword">local</span> MU = <span class="number">66</span>
+<span class="comment">-- standard deviation for normal intensity curve
+</span><span class="keyword">local</span> SIGMA = <span class="number">42</span>
+<span class="comment">-- normalize to 1.0 at x==MU
+</span><span class="keyword">local</span> SCALE = <span class="number">1</span> / gauss(MU, MU, SIGMA)
+<span class="comment">-- increment per sample (use negative for descending)
+</span><span class="comment">--local INC = tostream(.004 / msec(1))
+</span><span class="keyword">local</span> INC = EvdevStream(<span class="string">"TrackPoint"</span>):evrel(<span class="string">'REL_X'</span>):scale(-<span class="number">0.008</span>, <span class="number">0.008</span>):div(msec(<span class="number">1</span>)):cache()
+
+<span class="comment">-- starting pitches (in MIDI note numbers, octaves apart)
+</span><span class="keyword">local</span> pitches = {<span class="number">12</span>, <span class="number">24</span>, <span class="number">36</span>, <span class="number">48</span>, <span class="number">60</span>, <span class="number">72</span>, <span class="number">84</span>, <span class="number">96</span>, <span class="number">108</span>}
+
+<span class="keyword">local</span> <span class="keyword">function</span> mtoamp(note)
+	<span class="comment">-- compute loundess for each tone
+</span>	<span class="keyword">local</span> intensity = gauss(note, MU, SIGMA)*SCALE
+	<span class="comment">-- map intensity to amplitude
+</span>	<span class="keyword">return</span> dbtorms(intensity*<span class="number">96</span>)
+<span class="keyword">end</span>
+
+tostream(pitches):map(<span class="keyword">function</span>(m)
+	<span class="keyword">local</span> tone = INC:scan(<span class="keyword">function</span>(last, inc)
+		<span class="keyword">local</span> <span class="global">next</span> = (last <span class="keyword">or</span> m)+inc
+		<span class="keyword">if</span> <span class="global">next</span> &gt; <span class="number">120</span> <span class="keyword">then</span>
+			<span class="global">next</span> = <span class="global">next</span> - <span class="number">108</span>
+		<span class="keyword">elseif</span> <span class="global">next</span> &lt; <span class="number">12</span> <span class="keyword">then</span>
+			<span class="global">next</span> = <span class="global">next</span> + <span class="number">108</span>
+		<span class="keyword">end</span>
+		<span class="keyword">return</span> <span class="global">next</span>
+	<span class="keyword">end</span>):cache()
+	<span class="keyword">return</span> tone:map(mtof_raw):TriOsc() * tone:map(mtoamp)
+<span class="keyword">end</span>):fold(<span class="keyword">function</span>(a, b) <span class="keyword">return</span> a+b <span class="keyword">end</span>):ravel():gain(<span class="number">1</span>/#pitches):play()</pre>
+
+
+</div> <!-- id="content" -->
+</div> <!-- id="main" -->
+<div id="about">
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.6</a></i>
+<i style="float:right;">Last updated 2024-05-21 18:48:07 </i>
+</div> <!-- id="about" -->
+</div> <!-- id="container" -->
+</body>
+</html>

@@ -1,0 +1,5529 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<head>
+    <title>Reference</title>
+    <link rel="stylesheet" href="ldoc.css" type="text/css" />
+</head>
+<body>
+
+<div id="container">
+
+<div id="product">
+	<div id="product_logo"></div>
+	<div id="product_name"><big><b></b></big></div>
+	<div id="product_description"></div>
+</div> <!-- id="product" -->
+
+
+<div id="main">
+
+
+<!-- Menu -->
+
+<div id="navigation">
+<br/>
+<h1>Applause</h1>
+
+
+<h2>Contents</h2>
+<ul>
+<li><a href="#Functions">Functions</a></li>
+<li><a href="#Tables">Tables</a></li>
+<li><a href="#Fields">Fields</a></li>
+<li><a href="#Class_Stream">Class Stream</a></li>
+<li><a href="#Class_MuxStream">Class MuxStream </a></li>
+<li><a href="#Class_MuxableStream">Class MuxableStream </a></li>
+<li><a href="#Class_ConcatStream">Class ConcatStream </a></li>
+<li><a href="#Class_ZipStream">Class ZipStream </a></li>
+<li><a href="#Class_NoiseStream">Class NoiseStream </a></li>
+<li><a href="#Class_PinkNoiseStream">Class PinkNoiseStream </a></li>
+<li><a href="#Class_SndfileStream">Class SndfileStream </a></li>
+<li><a href="#Class_DSSIStream">Class DSSIStream </a></li>
+<li><a href="#Class_MIDIStream">Class MIDIStream </a></li>
+<li><a href="#Class_EvdevStream">Class EvdevStream </a></li>
+</ul>
+
+
+<h2>Modules</h2>
+<ul class="nowrap">
+  <li><strong>applause</strong></li>
+</ul>
+<h2>Topics</h2>
+<ul class="">
+  <li><a href="topics/README.md.html">README</a></li>
+</ul>
+<h2>Examples</h2>
+<ul class="nowrap">
+  <li><a href="examples/evdev.lua.html">evdev.lua</a></li>
+  <li><a href="examples/fft.lua.html">fft.lua</a></li>
+  <li><a href="examples/shepard.lua.html">shepard.lua</a></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+<h1>Module <code>applause</code></h1>
+<p>This &ldquo;module&rdquo; lists all symbols available on a REPL prompt.</p>
+<p> It does not have to and cannot be externally included using <a href="https://www.lua.org/manual/5.1/manual.html#pdf-require">require</a>.</p>
+    <h3>Info:</h3>
+    <ul>
+        <li><strong>Author</strong>: Robin Haberkorn</li>
+    </ul>
+
+
+<h2><a href="#Functions">Functions</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#checkint">checkint()</a></td>
+	<td class="summary">Check whether the process was interrupted (SIGINT received).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#benchmark">benchmark(fnc)</a></td>
+	<td class="summary">Measure time required to execute fnc()</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#sec">sec([x=1])</a></td>
+	<td class="summary">Convert seconds to sample numbers.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#msec">msec([x=1])</a></td>
+	<td class="summary">Convert milliseconds to sample numbers.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#DeriveClass">DeriveClass([base])</a></td>
+	<td class="summary">Derive class</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#iota">iota([v1=1[, v2=math.huge]])</a></td>
+	<td class="summary">Generate sequences of integers between [v1,v2].</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:resample">Stream:resample(factor)</a></td>
+	<td class="summary">Resample stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#BrownNoise">BrownNoise()</a></td>
+	<td class="summary">Create a brown noise stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#tostream">tostream(v)</a></td>
+	<td class="summary">Convert value to <a href="api.html#Stream">Stream</a>.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#line">line(v1, t, v2)</a></td>
+	<td class="summary">Generate a linear line segment.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#curve">curve(v1, alpha, t[, v2=0])</a></td>
+	<td class="summary">Generates a single linear or logarithmic line segment.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#curves">curves(v1, alpha, t, v2, ...)</a></td>
+	<td class="summary">Generates a variable number of concatenated line segments.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#FFT">FFT(samples)</a></td>
+	<td class="summary">Transform fixed number of audio samples to frequency spectrum (FFT).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#magnitude">magnitude(spectrum)</a></td>
+	<td class="summary">Convert complex frequency spectrum to magnitude/amplitude per frequency.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#phase">phase(spectrum[, threshold=0.1])</a></td>
+	<td class="summary">Convert frequency spectrum to phase in value between [0,1].</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#IFFT">IFFT(spectrum)</a></td>
+	<td class="summary">Transform fixed number of frequency bins to audio samples (inverse FFT).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Hamming">Hamming(samples)</a></td>
+	<td class="summary">Apply Hamming window to a fixed number of samples.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Hanning">Hanning(samples)</a></td>
+	<td class="summary">Apply Hann window to a fixed number of samples.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#mton">mton(note)</a></td>
+	<td class="summary">Convert MIDI note number to name.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#ntom">ntom(name)</a></td>
+	<td class="summary">Convert MIDI note name to number.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#mtof">mtof(note)</a></td>
+	<td class="summary">Convert from MIDI note to frequency.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#ftom">ftom(freq)</a></td>
+	<td class="summary">Convert from frequency to closest MIDI note.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#ntof">ntof(name)</a></td>
+	<td class="summary">Convert from MIDI name to frequency.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#fton">fton(freq)</a></td>
+	<td class="summary">Convert from frequency to closest MIDI note name.</td>
+	</tr>
+</table>
+<h2><a href="#Tables">Tables</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#sampleCache">sampleCache</a></td>
+	<td class="summary">The sample cache.</td>
+	</tr>
+</table>
+<h2><a href="#Fields">Fields</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#samplerate">samplerate</a></td>
+	<td class="summary">Sample rate in Hz.</td>
+	</tr>
+</table>
+<h2><a href="#Class_Stream">Class Stream</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#Stream:new">Stream:new([value=0])</a></td>
+	<td class="summary">Create a stream for generating values.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:ctor">Stream:ctor(...)</a></td>
+	<td class="summary">Stream constructor.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:abs">Stream:abs()</a></td>
+	<td class="summary">Get absolute value of all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:acos">Stream:acos()</a></td>
+	<td class="summary">Get arc cosine of all samples (in radians)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:asin">Stream:asin()</a></td>
+	<td class="summary">Get the arc sine of all samples (in radians)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:atan">Stream:atan()</a></td>
+	<td class="summary">Get the arc tangent of all samples (in radians)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:ceil">Stream:ceil()</a></td>
+	<td class="summary">Get the smallest integer larger than or equal to all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:cos">Stream:cos()</a></td>
+	<td class="summary">Get the cosine of all samples (assumed to be in radians)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:cosh">Stream:cosh()</a></td>
+	<td class="summary">Get the hyperbolic cosine of all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:deg">Stream:deg()</a></td>
+	<td class="summary">Get the angle of all samples (given in radians) in degrees</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:exp">Stream:exp()</a></td>
+	<td class="summary">Get the value e^<sup>x</sup> for all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:floor">Stream:floor()</a></td>
+	<td class="summary">Get the largest integer smaller than or equal to all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:log">Stream:log()</a></td>
+	<td class="summary">Get the natural logarithm of all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:log10">Stream:log10()</a></td>
+	<td class="summary">Get the base-10 logarithm of all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:rad">Stream:rad()</a></td>
+	<td class="summary">Get the angle of all samples (given in degrees) in radians</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:sin">Stream:sin()</a></td>
+	<td class="summary">Get the sine of all samples (assumed to be in radians).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:sinh">Stream:sinh()</a></td>
+	<td class="summary">Get the hyperbolic sine of all samples.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:sqrt">Stream:sqrt()</a></td>
+	<td class="summary">Get the square root of all samples.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:tan">Stream:tan()</a></td>
+	<td class="summary">Get the tangent of all samples (assumed to be in radians)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:tanh">Stream:tanh()</a></td>
+	<td class="summary">Get the hyperbolic tangent of all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:min">Stream:min(v)</a></td>
+	<td class="summary">Returns the minimum value between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:max">Stream:max(v)</a></td>
+	<td class="summary">Returns the maximum value between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:bnot">Stream:bnot()</a></td>
+	<td class="summary">Get the bitwise <strong>not</strong> of all samples</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:bor">Stream:bor(v)</a></td>
+	<td class="summary">Perform bitwise <strong>or</strong> between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:band">Stream:band(v)</a></td>
+	<td class="summary">Perform bitwise <strong>and</strong> between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:xor">Stream:xor(v)</a></td>
+	<td class="summary">Perform bitwise <strong>xor</strong> between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:lshift">Stream:lshift(v)</a></td>
+	<td class="summary">Perform bitwise <strong>logical left-shift</strong> between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:rshift">Stream:rshift(v)</a></td>
+	<td class="summary">Perform bitwise <strong>logical right-shift</strong> between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:arshift">Stream:arshift(v)</a></td>
+	<td class="summary">Perform bitwise <strong>arithmetic right-shift</strong> between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:rol">Stream:rol(v)</a></td>
+	<td class="summary">Perform bitwise <strong>left rotation</strong> between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:ror">Stream:ror(v)</a></td>
+	<td class="summary">Perform bitwise <strong>right rotation</strong> between two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:clip">Stream:clip([min=-1[, max=+1]])</a></td>
+	<td class="summary">Clip all samples between two values (between [-1,+1] by default).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:scale">Stream:scale([v1=0], v2)</a></td>
+	<td class="summary">Scale stream with values between [-1,+1] to [lower,upper]</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:mix">Stream:mix(other[, wetness=0.5])</a></td>
+	<td class="summary">Mix two streams</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:pan">Stream:pan([location=0])</a></td>
+	<td class="summary">Distribute mono-stream between two stereo channels</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:Phasor">Stream:Phasor([phase=0])</a></td>
+	<td class="summary">Create a ramp between [0,1] with the frequency taken from the source stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:SawOsc">Stream:SawOsc([phase=0])</a></td>
+	<td class="summary">Saw tooth wave between [-1,+1] with the frequency taken from the source stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:SinOsc">Stream:SinOsc([phase=0])</a></td>
+	<td class="summary">Sinusiod wave between [-1,+1] with the frequency taken from the source stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:PulseOsc">Stream:PulseOsc([phase=0])</a></td>
+	<td class="summary">Pulse between [0,1] with the frequency taken from the source stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:SqrOsc">Stream:SqrOsc([phase=0])</a></td>
+	<td class="summary">Square wave between [-1,+1] with the frequency taken from the source stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:TriOsc">Stream:TriOsc([phase=0])</a></td>
+	<td class="summary">Triangle wave between [-1,+1] with the frequency taken from the source stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:crush">Stream:crush([bits=8])</a></td>
+	<td class="summary">Bit crusher effect.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:len">Stream:len()</a></td>
+	<td class="summary">Get a stream&rsquo;s length in samples.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:play">Stream:play([first_port=1])</a></td>
+	<td class="summary">Send samples to the Jack output ports, ie.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:iter">Stream:iter()</a></td>
+	<td class="summary">Iterator over each frame generated by the stream for use with for-in statements.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:benchmark">Stream:benchmark()</a></td>
+	<td class="summary">Benchmark stream (time to generate all samples).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:jbc">Stream:jbc([out=io.stdout[, all=true]])</a></td>
+	<td class="summary">Dump bytecode for stream (its tick function).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:jdump">Stream:jdump([opt="tbim"[, outfile=io.stdout]])</a></td>
+	<td class="summary">Dump bytecode, traces and machine code of stream (its tick function).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:tonumber">Stream:tonumber()</a></td>
+	<td class="summary">Convert all values to Lua numbers</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:tostring">Stream:tostring()</a></td>
+	<td class="summary">Convert all values to Lua strings</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:totable">Stream:totable()</a></td>
+	<td class="summary">Calculate all values of a stream and return them as Lua arrays/tables.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:eval">Stream:eval()</a></td>
+	<td class="summary">Evaluate stream eagerly.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:toplot">Stream:toplot([rows=25[, cols=80]])</a></td>
+	<td class="summary">Plot stream with numbers between [-1,+1] to ASCII graphics.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:pipe">Stream:pipe(prog[, vbufmode="full"[, vbufsize]])</a></td>
+	<td class="summary">Pipe stream values to external program.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:gnuplot">Stream:gnuplot([file[, terminal]])</a></td>
+	<td class="summary">Plot stream using <a href="http://www.gnuplot.info/">gnuplot</a>.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:print">Stream:print([format='%s'])</a></td>
+	<td class="summary">Print values of stream when they change.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:instanceof">Stream:instanceof(other_class)</a></td>
+	<td class="summary">Check whether stream is an instance of a particular class.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.__index">Stream.__index</a></td>
+	<td class="summary">Extract and interpolate samples using the <code>[]</code> operator (metamethod).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.__tostring">Stream.__tostring</a></td>
+	<td class="summary">Format stream as string (metamethod).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.add">Stream.add(v1, v2)</a></td>
+	<td class="summary">Add samples of two streams
+ This can be called as a Stream method or as an operator.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.minus">Stream.minus(v1, v2)</a></td>
+	<td class="summary">Subtract samples of two streams
+ This can be called as a Stream method or as an operator.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.mul">Stream.mul(v1, v2)</a></td>
+	<td class="summary">Multiply samples of two streams
+ This can be called as a Stream method or as an operator.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:gain">Stream:gain(volume)</a></td>
+	<td class="summary">Change volume (gain) of stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.div">Stream.div(v1, v2)</a></td>
+	<td class="summary">Divide samples of two streams
+ This can be called as a Stream method or as an operator.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.mod">Stream.mod(v1, v2)</a></td>
+	<td class="summary">Calculate modulus of two streams
+ This can be called as a Stream method or as an operator.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.pow">Stream.pow(v1, v2)</a></td>
+	<td class="summary">Take one stream to the power of another stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.__unm">Stream.__unm</a></td>
+	<td class="summary">Negate all samples of stream via <code>-</code> operator (metamethod)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.__lt">Stream.__lt</a></td>
+	<td class="summary">Check whether one stream is short than second via <code>&lt;</code> operator (metamethod)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.__le">Stream.__le</a></td>
+	<td class="summary">Check whether one stream is short than or equal to second via <code>&lt;=</code> operator (metamethod)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.__concat">Stream.__concat</a></td>
+	<td class="summary">Concatenate two streams via <code>..</code> operator (metamethod)</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:demux">Stream:demux(i[, j=i])</a></td>
+	<td class="summary">Extract one or more channels</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:mux">Stream:mux(...)</a></td>
+	<td class="summary">Mux several streams with the source stream into a multi-channel stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream.dupmux">Stream.dupmux(stream[, channels=2])</a></td>
+	<td class="summary">Duplicate channel in single-channel stream (or suitable scalar value).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:cache">Stream:cache()</a></td>
+	<td class="summary">Cache this stream value to avoid recalculation within
+ the same tick (ie.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:rep">Stream:rep([repeats])</a></td>
+	<td class="summary">Repeat stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:ravel">Stream:ravel()</a></td>
+	<td class="summary">Ravel stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:sub">Stream:sub(i[, j=-1])</a></td>
+	<td class="summary">Get substream (restrict stream in length).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:map">Stream:map(fnc)</a></td>
+	<td class="summary">Map function to every sample of stream</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:each">Stream:each()</a></td>
+	<td class="summary">APL synonym of <a href="api.html#Stream:map">Stream:map</a>.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:scan">Stream:scan(fnc)</a></td>
+	<td class="summary">Scan stream with function.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:fold">Stream:fold(fnc)</a></td>
+	<td class="summary">Fold stream by calling function between all samples.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:reduce">Stream:reduce()</a></td>
+	<td class="summary">APL synonym for <a href="api.html#Stream:fold">Stream:fold</a>.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:partition">Stream:partition(size)</a></td>
+	<td class="summary">Partition stream into arrays of the given size.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:zip">Stream:zip(fnc, ...)</a></td>
+	<td class="summary">Zip stream with one or more other streams.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:delay">Stream:delay(length)</a></td>
+	<td class="summary">Delay stream by buffering (delay line).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:echo">Stream:echo(length[, wetness=0.5])</a></td>
+	<td class="summary">Add echo to stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:delayx">Stream:delayx(length[, max_length=sec()])</a></td>
+	<td class="summary">Delay line with variable length.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:echox">Stream:echox(length[, wetness=0.5[, max_length=sec()]])</a></td>
+	<td class="summary">Echo with variable delay.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:save">Stream:save(filename[, format])</a></td>
+	<td class="summary">Save stream to sound file.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:LPF">Stream:LPF(freq)</a></td>
+	<td class="summary">Apply Low Pass Filter to stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:HPF">Stream:HPF(freq)</a></td>
+	<td class="summary">Apply High Pass Filter to stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:BPF">Stream:BPF(freq, quality)</a></td>
+	<td class="summary">Apply Band Pass Filter to stream (2nd order Butterworth).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:BRF">Stream:BRF(freq, quality)</a></td>
+	<td class="summary">Apply Band Reject Filter to stream (2nd order Butterworth).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:FFT">Stream:FFT(size[, window_fnc])</a></td>
+	<td class="summary">Analyze frequencies of a potentially infinite realtime stream via FFT.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:IFFT">Stream:IFFT(size)</a></td>
+	<td class="summary">Synthesize audio samples from a stream of frequency spectrums via inverse FFT.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:DSSI">Stream:DSSI(file[, input_ports], ...)</a></td>
+	<td class="summary">Apply DSSI or LADSPA plugin to stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:CC">Stream:CC(control[, channel=0])</a></td>
+	<td class="summary">Filter out last value of a specific MIDI control channel, scaled to [-1,+1].</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:CCrel">Stream:CCrel(control[, channel=0[, resolution=1000]])</a></td>
+	<td class="summary">Filter out last value of a specific relative MIDI control channel.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:CC14">Stream:CC14(control[, channel=0])</a></td>
+	<td class="summary">Filter out last value of a specific <strong>14-bit</strong> MIDI control channel, scaled to [-1,+1].</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:mvelocity">Stream:mvelocity(note[, channel=0])</a></td>
+	<td class="summary">Filter out last value of a MIDI note velocity.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:mton">Stream:mton()</a></td>
+	<td class="summary">Convert stream of MIDI note numbers to names.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:ntom">Stream:ntom()</a></td>
+	<td class="summary">Convert stream of MIDI note names to numbers.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:mtof">Stream:mtof()</a></td>
+	<td class="summary">Convert stream of MIDI note numbers to frequencies.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:ftom">Stream:ftom()</a></td>
+	<td class="summary">Convert stream of frequencies to closest MIDI note numbers.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:ntof">Stream:ntof()</a></td>
+	<td class="summary">Convert stream of MIDI names to frequencies.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:fton">Stream:fton()</a></td>
+	<td class="summary">Convert stream of frequencies to closest MIDI note names.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:instrument">Stream:instrument(on_stream[, off_stream])</a></td>
+	<td class="summary">Tick instrument streams based on an input stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:evrel">Stream:evrel([code='REL_X'[, resolution=1000]])</a></td>
+	<td class="summary">Filter Evdev event stream to get the last value of a device with relative positioning (EV_REL).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:evabs">Stream:evabs([code='ABS_X'], min, max)</a></td>
+	<td class="summary">Filter Evdev event stream to get the last value of a device with absolute positioning (EV_ABS).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Stream:evkey">Stream:evkey(key)</a></td>
+	<td class="summary">Filter Evdev event stream to get the last key code (EV_KEY).</td>
+	</tr>
+</table>
+<h2><a href="#Class_MuxStream">Class MuxStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#MuxStream:new">MuxStream:new(...)</a></td>
+	<td class="summary">Create new MuxStream, ie combine multiple streams given as parameters into a single multi-channel stream.</td>
+	</tr>
+</table>
+<h2><a href="#Class_MuxableStream">Class MuxableStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#MuxableStream.sig_first_stream">MuxableStream.sig_first_stream</a></td>
+	<td class="summary">The first muxable stream in <a href="api.html#MuxableStream:muxableCtor">MuxableStream:muxableCtor</a>&rsquo;s signature.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#MuxableStream.sig_last_stream">MuxableStream.sig_last_stream</a></td>
+	<td class="summary">The last muxable stream in <a href="api.html#MuxableStream:muxableCtor">MuxableStream:muxableCtor</a>&rsquo;s signature.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#MuxableStream:muxableCtor">MuxableStream:muxableCtor(...)</a></td>
+	<td class="summary">Constructor for classes derived form <a href="api.html#MuxableStream">MuxableStream</a>.</td>
+	</tr>
+</table>
+<h2><a href="#Class_ConcatStream">Class ConcatStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#ConcatStream:new">ConcatStream:new(...)</a></td>
+	<td class="summary">Create new ConcatStream, ie concatenation of serveral streams.</td>
+	</tr>
+</table>
+<h2><a href="#Class_ZipStream">Class ZipStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#ZipStream:new">ZipStream:new(fnc, ...)</a></td>
+	<td class="summary">Create a ZipStream.</td>
+	</tr>
+</table>
+<h2><a href="#Class_NoiseStream">Class NoiseStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#NoiseStream:new">NoiseStream:new()</a></td>
+	<td class="summary">Create new NoiseStream</td>
+	</tr>
+</table>
+<h2><a href="#Class_PinkNoiseStream">Class PinkNoiseStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#PinkNoiseStream:new">PinkNoiseStream:new()</a></td>
+	<td class="summary">Create new NoiseStream</td>
+	</tr>
+</table>
+<h2><a href="#Class_SndfileStream">Class SndfileStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#SndfileStream:new">SndfileStream:new(filename[, samplerate[, channels[, format]]])</a></td>
+	<td class="summary">Create a SndfileStream.</td>
+	</tr>
+</table>
+<h2><a href="#Class_DSSIStream">Class DSSIStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#DSSIStream:new">DSSIStream:new(file[, midi_event_stream][, input_ports], ...)</a></td>
+	<td class="summary">Create a DSSI or LADSPA stream.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#DSSIStream:getName">DSSIStream:getName()</a></td>
+	<td class="summary">Get name of DSSI/LADSPA plugin.</td>
+	</tr>
+</table>
+<h2><a href="#Class_MIDIStream">Class MIDIStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#MIDIStream:new">MIDIStream:new()</a></td>
+	<td class="summary">Create new MIDIStream</td>
+	</tr>
+</table>
+<h2><a href="#Class_EvdevStream">Class EvdevStream </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#EvdevStream.list">EvdevStream.list()</a></td>
+	<td class="summary">List all HID devices on stdout.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#EvdevStream:new">EvdevStream:new(id[, grab=true])</a></td>
+	<td class="summary">Create EvdevStream (stream HID device events).</td>
+	</tr>
+</table>
+
+<br/>
+<br/>
+
+
+    <h2 class="section-header "><a name="Functions"></a>Functions</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "checkint"></a>
+    <strong>checkint()</strong>
+    </dt>
+    <dd>
+    Check whether the process was interrupted (SIGINT received).</p>
+
+<p> This checks and automatically raises an error if CTRL+C was pressed
+ or SIGINT was received.
+ The automatic way to handle SIGINT is <strong>not</strong> reliable in LuaJIT.
+ A call to this function should therefore be added to all tight
+ loops.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "benchmark"></a>
+    <strong>benchmark(fnc)</strong>
+    </dt>
+    <dd>
+    Measure time required to execute fnc()
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">fnc</span>
+            <span class="types"><span class="type">func</span></span>
+         Function to benchmark
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:benchmark">Stream:benchmark</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "sec"></a>
+    <strong>sec([x=1])</strong>
+    </dt>
+    <dd>
+    Convert seconds to sample numbers.
+ These are functions, so we can round the result
+ automatically.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">x</span>
+            <span class="types"><span class="type">number</span></span>
+         Number of seconds
+         (<em>default</em> 1)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">int</span></span>
+        Number of samples
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "msec"></a>
+    <strong>msec([x=1])</strong>
+    </dt>
+    <dd>
+    Convert milliseconds to sample numbers.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">x</span>
+            <span class="types"><span class="type">number</span></span>
+         Number of milliseconds
+         (<em>default</em> 1)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">int</span></span>
+        Number of samples
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "DeriveClass"></a>
+    <strong>DeriveClass([base])</strong>
+    </dt>
+    <dd>
+    Derive class
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">base</span>
+            <span class="types"><span class="type">Class</span></span>
+           Base class.
+   This should usually be <a href="api.html#Stream">Stream</a> or <a href="api.html#MuxableStream">MuxableStream</a> when deriving custom Stream classes.
+         (<em>optional</em>)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+        Derived class table
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "iota"></a>
+    <strong>iota([v1=1[, v2=math.huge]])</strong>
+    </dt>
+    <dd>
+    Generate sequences of integers between [v1,v2].
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><span class="type">int</span></span>
+           If this is the only argument, the lower bound is 1 and v1 specifies the upper bound.
+   So without arguments, an infinite sequence of integers beginning with 1 will be generated.
+         (<em>default</em> 1)
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><span class="type">int</span></span>
+         If a second argument is specified, v1 is the lower bound and v2 the upper bound.
+         (<em>default</em> math.huge)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">iota(<span class="number">23</span>)</pre></li>
+        <li><pre class="example">iota(<span class="number">1</span>, <span class="number">23</span>)</pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:resample"></a>
+    <strong>Stream:resample(factor)</strong>
+    </dt>
+    <dd>
+    Resample stream.
+ This uses linear interpolation.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">factor</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+           The resampling factor.
+   If lower than 1, the stream will be slowed.
+   If higher than 1, it will be sped up.
+   This cannot be smaller than 0.
+   The factor can only be a mono-stream if the source stream is infinite.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+           If the source stream is infinite, the length is limited by the factor-stream.
+   Otherwise, it is <code>self:len()/factor</code>.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "BrownNoise"></a>
+    <strong>BrownNoise()</strong>
+    </dt>
+    <dd>
+    Create a brown noise stream.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#NoiseStream">NoiseStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "tostream"></a>
+    <strong>tostream(v)</strong>
+    </dt>
+    <dd>
+    Convert value to <a href="api.html#Stream">Stream</a>.
+ Streams are returned unchanged.
+ A table/array will be converted to a stream, that produces all of its elements consecutively.
+ All other Lua values are generated infinitely.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+         Value to convert.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">tostream(<span class="number">440</span>):SinOsc():play()</pre></li>
+        <li><pre class="example">tostream{<span class="string">"A4"</span>, <span class="string">"B4"</span>, <span class="string">"C4"</span>}:ntof()</pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "line"></a>
+    <strong>line(v1, t, v2)</strong>
+    </dt>
+    <dd>
+    Generate a linear line segment.
+ It will start with v1 and linearilly slide to v2 in the given time.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Start value.
+        </li>
+        <li><span class="parameter">t</span>
+            <span class="types"><span class="type">int</span></span>
+         Duration of the value change in samples.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         End value.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        The resulting stream will have length t.
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):gain(line(<span class="number">0</span>, sec(<span class="number">5</span>), <span class="number">1</span>)):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "curve"></a>
+    <strong>curve(v1, alpha, t[, v2=0])</strong>
+    </dt>
+    <dd>
+    Generates a single linear or logarithmic line segment.
+ It will start at v1 and logarithmically slide to v2 in the given time.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><span class="type">number</span></span>
+         Start value.
+        </li>
+        <li><span class="parameter">alpha</span>
+            <span class="types"><span class="type">number</span></span>
+           Line curvature.
+   A value of nil or 0, creates a straight line.
+   If smaller than 0, makes a logarithmic (convex) curve; larger negative values make &ldquo;sharper&rdquo; curves.
+   If larger than 0, makes a logarithmic (concave) curve; larger values make &ldquo;sharper&rdquo; curves.
+        </li>
+        <li><span class="parameter">t</span>
+            <span class="types"><span class="type">int</span></span>
+         Duration of the value change in samples.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><span class="type">number</span></span>
+         End value.
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        The resulting stream will have length t.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#line">line</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):gain(curve(<span class="number">0</span>, -<span class="number">1</span>, sec(<span class="number">5</span>), <span class="number">1</span>)):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "curves"></a>
+    <strong>curves(v1, alpha, t, v2, ...)</strong>
+    </dt>
+    <dd>
+    Generates a variable number of concatenated line segments.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><span class="type">number</span></span>
+         Start value.
+        </li>
+        <li><span class="parameter">alpha</span>
+            <span class="types"><span class="type">number</span></span>
+         Line curvature.
+        </li>
+        <li><span class="parameter">t</span>
+            <span class="types"><span class="type">int</span></span>
+         Duration of the value change in samples.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><span class="type">number</span></span>
+         End value.
+        </li>
+        <li><span class="parameter">...</span>
+         There can be more line segments starting with v2.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#curve">curve</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):gain(curves(<span class="number">0</span>, <span class="number">0</span>, sec(<span class="number">1</span>), <span class="number">1</span>, <span class="number">0</span>, sec(<span class="number">1</span>), <span class="number">0</span>)):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "FFT"></a>
+    <strong>FFT(samples)</strong>
+    </dt>
+    <dd>
+    Transform fixed number of audio samples to frequency spectrum (FFT).
+ The spectrum is represented by complex numbers (C type: <code>double complex</code>).
+ The resulting spectrum is conjuage symmetric and the redundant half is
+ therefore not returned.
+ Each bin <code>i</code> in the resulting frequency spectrum represents frequency
+ <code>(i-1)*samplerate/#samples</code>.
+ The number of input samples therefore also restricts the frequency resolution.
+ For the human ear, a buffer size of 2048 would be more than enough.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">samples</span>
+            <span class="types"><span class="type">{number,...}</span> or <a class="type" href="api.html#Stream">Stream</a></span>
+           The audio samples to transform.
+   This can be a Stream, but only if it is not infinite (it will be automatically
+   converted to a table).
+   The number of samples must be a power of 2.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">{complex,...}</span></span>
+        The complex spectrum of size <code>#samples/2+1</code>.
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">FFT(Stream.SinOsc(samplerate*<span class="number">20</span>/<span class="number">1024</span>):sub(<span class="number">1</span>, <span class="number">1024</span>))</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "magnitude"></a>
+    <strong>magnitude(spectrum)</strong>
+    </dt>
+    <dd>
+    Convert complex frequency spectrum to magnitude/amplitude per frequency.
+ This conversion is <strong>inplace</strong>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">spectrum</span>
+            <span class="types"><span class="type">{complex,...}</span></span>
+         Frequency spectrum.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">{number,...}</span></span>
+        The magnitudes per frequency (same table as <code>spectrum</code>).
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#FFT">FFT</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">tostream(magnitude(FFT(Stream.SinOsc(samplerate*<span class="number">20</span>/<span class="number">1024</span>):sub(<span class="number">1</span>, <span class="number">1024</span>)))):gnuplot()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "phase"></a>
+    <strong>phase(spectrum[, threshold=0.1])</strong>
+    </dt>
+    <dd>
+    Convert frequency spectrum to phase in value between [0,1].
+ This conversion is <strong>inplace</strong>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">spectrum</span>
+            <span class="types"><span class="type">{complex,...}</span></span>
+         Frequency spectrum.
+        </li>
+        <li><span class="parameter">threshold</span>
+            <span class="types"><span class="type">number</span></span>
+           The magnitude threshold. Why this is necessary, see
+   <a href="https://www.gaussianwaves.com/2015/11/interpreting-fft-results-obtaining-magnitude-and-phase-information/">this blog post</a>.
+         (<em>default</em> 0.1)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">{number,...}</span></span>
+        The phase value between [0,1] per frequency (same table as <code>spectrum</code>).
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#FFT">FFT</a></li>
+         <li><a href="api.html#magnitude">magnitude</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">tostream(phase(FFT(Stream.SinOsc(samplerate*<span class="number">20</span>/<span class="number">1024</span>, <span class="number">0.7</span>):sub(<span class="number">1</span>, <span class="number">1024</span>)))):gnuplot()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "IFFT"></a>
+    <strong>IFFT(spectrum)</strong>
+    </dt>
+    <dd>
+    Transform fixed number of frequency bins to audio samples (inverse FFT).
+ The spectrum is represented by complex numbers (C type: <code>double complex</code>).
+ The spectrum is assumed to be conjuage symmetric and the redundant half is
+ not required to be provided.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">spectrum</span>
+            <span class="types"><span class="type">{complex,...}</span> or <a class="type" href="api.html#Stream">Stream</a></span>
+           The frequency bins to transform.
+   This can be a Stream, but only if it is not infinite (it will be automatically
+   converted to a table).
+   This spectrum length must be such that the resulting number of audio samples
+   is a power of 2.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">{number,...}</span></span>
+        The audio samples of size <code>(#spectrum-1)*2</code>.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#FFT">FFT</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">IFFT(FFT(Stream.SinOsc(samplerate*<span class="number">20</span>/<span class="number">1024</span>):sub(<span class="number">1</span>, <span class="number">1024</span>))):gnuplot()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Hamming"></a>
+    <strong>Hamming(samples)</strong>
+    </dt>
+    <dd>
+    Apply Hamming window to a fixed number of samples.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">samples</span>
+            <span class="types"><span class="type">{number,...}</span> or <a class="type" href="api.html#Stream">Stream</a></span>
+           The audio samples to window.
+   This can be a Stream, but only if it is not infinite (it will be automatically
+   converted to a table).
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">{number,...}</span></span>
+           The windowed samples.
+   The conversion is <strong>inplace</strong>, so this may be the same table as <code>samples</code>.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Hanning">Hanning</a></li>
+         <li><a href="api.html#Stream:FFT">Stream:FFT</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">tostream(magnitude(FFT(Hamming(Stream.SinOsc(samplerate*<span class="number">20.5</span>/<span class="number">1024</span>):sub(<span class="number">1</span>, <span class="number">1024</span>))))):gnuplot()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Hanning"></a>
+    <strong>Hanning(samples)</strong>
+    </dt>
+    <dd>
+    Apply Hann window to a fixed number of samples.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">samples</span>
+            <span class="types"><span class="type">{number,...}</span> or <a class="type" href="api.html#Stream">Stream</a></span>
+           The audio samples to window.
+   This can be a Stream, but only if it is not infinite (it will be automatically
+   converted to a table).
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">{number,...}</span></span>
+           The windowed samples.
+   The conversion is <strong>inplace</strong>, so this may be the same table as <code>samples</code>.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Hamming">Hamming</a></li>
+         <li><a href="api.html#Stream:FFT">Stream:FFT</a></li>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "mton"></a>
+    <strong>mton(note)</strong>
+    </dt>
+    <dd>
+    Convert MIDI note number to name.
+ See also the <a href="https://newt.phys.unsw.edu.au/jw/notes.html">conversion table</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">note</span>
+            <span class="types"><span class="type">int</span></span>
+         MIDI note number.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+        MIDI note name in all upper case.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:mton">Stream:mton</a></li>
+         <li><a href="api.html#ntom">ntom</a></li>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "ntom"></a>
+    <strong>ntom(name)</strong>
+    </dt>
+    <dd>
+    Convert MIDI note name to number.
+ See also the <a href="https://newt.phys.unsw.edu.au/jw/notes.html">conversion table</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">name</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         MIDI note name (case insensitive).
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">int</span></span>
+        MIDI note number between [0,127].
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:ntom">Stream:ntom</a></li>
+         <li><a href="api.html#mton">mton</a></li>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "mtof"></a>
+    <strong>mtof(note)</strong>
+    </dt>
+    <dd>
+    Convert from MIDI note to frequency.
+ See also the <a href="https://newt.phys.unsw.edu.au/jw/notes.html">conversion table</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">note</span>
+            <span class="types"><span class="type">int</span></span>
+         MIDI note number between [0,127].
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">number</span></span>
+        Frequency
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:mtof">Stream:mtof</a></li>
+         <li><a href="api.html#ftom">ftom</a></li>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "ftom"></a>
+    <strong>ftom(freq)</strong>
+    </dt>
+    <dd>
+    Convert from frequency to closest MIDI note.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">freq</span>
+            <span class="types"><span class="type">number</span></span>
+         Arbitrary frequency.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">int</span></span>
+        Closest MIDI note number.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:ftom">Stream:ftom</a></li>
+         <li><a href="api.html#mtof">mtof</a></li>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "ntof"></a>
+    <strong>ntof(name)</strong>
+    </dt>
+    <dd>
+    Convert from MIDI name to frequency.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">name</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         MIDI name (case-insensitive).
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">number</span></span>
+        Frequency
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:ntof">Stream:ntof</a></li>
+         <li><a href="api.html#ntom">ntom</a></li>
+         <li><a href="api.html#mtof">mtof</a></li>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "fton"></a>
+    <strong>fton(freq)</strong>
+    </dt>
+    <dd>
+    Convert from frequency to closest MIDI note name.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">freq</span>
+            <span class="types"><span class="type">number</span></span>
+         Frequency
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+        The all-upper-case MIDI note name.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:fton">Stream:fton</a></li>
+         <li><a href="api.html#ftom">ftom</a></li>
+         <li><a href="api.html#mton">mton</a></li>
+    </ul>
+
+
+</dd>
+</dl>
+    <h2 class="section-header "><a name="Tables"></a>Tables</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "sampleCache"></a>
+    <strong>sampleCache</strong>
+    </dt>
+    <dd>
+    The sample cache.
+ This maps <a href="api.html#Stream">Stream</a> objects to arbitrary values (usually numbers) and
+ can be used by Stream implementations to avoid recalculations during a single tick.
+ It is cleared after every tick.
+ You usually <strong>don&rsquo;t</strong> have to access this table manually, but <em>should</em> use
+ <a href="api.html#Stream:cache">Stream:cache</a> instead.
+ This is only seldom useful when implementing new Stream classes.</p>
+
+<p> We don&rsquo;t know how large it must be, but once it is
+ allocated we only table.clear() it.
+
+
+
+
+
+
+
+</dd>
+</dl>
+    <h2 class="section-header "><a name="Fields"></a>Fields</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "samplerate"></a>
+    <strong>samplerate</strong>
+    </dt>
+    <dd>
+    Sample rate in Hz.
+ This variable is overwritten by the C core.
+
+
+
+
+
+
+
+</dd>
+</dl>
+    <h2 class="section-header "><a name="Class_Stream"></a>Class Stream</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "Stream:new"></a>
+    <strong>Stream:new([value=0])</strong>
+    </dt>
+    <dd>
+    Create a stream for generating values.
+ The stream will produce the same value in every tick.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">value</span>
+         Value to generate
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#tostream">tostream</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">Stream:new(<span class="number">23</span>)</pre></li>
+        <li><pre class="example">Stream(<span class="number">23</span>)</pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:ctor"></a>
+    <strong>Stream:ctor(...)</strong>
+    </dt>
+    <dd>
+    Stream constructor.
+ This is an <strong>abstract</strong> method that must be implemented when deriving custom classes.
+ It is never invoked directly - use the corresponding <a href="api.html#Stream:new">Stream:new</a> method instead.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">...</span>
+         Arbitrary parameters, passed on from the <a href="api.html#Stream:new">Stream:new</a> method.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types">optional <a class="type" href="api.html#Stream">Stream</a></span>
+           You can optionally return a <a href="api.html#Stream">Stream</a> instance to competely replace the object table.
+   If given, this value will be returned by the <a href="api.html#Stream:new">Stream:new</a> method instead.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:abs"></a>
+    <strong>Stream:abs()</strong>
+    </dt>
+    <dd>
+    Get absolute value of all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.abs">math.abs</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:acos"></a>
+    <strong>Stream:acos()</strong>
+    </dt>
+    <dd>
+    Get arc cosine of all samples (in radians)
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.acos">math.acos</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:asin"></a>
+    <strong>Stream:asin()</strong>
+    </dt>
+    <dd>
+    Get the arc sine of all samples (in radians)
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.asin">math.asin</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:atan"></a>
+    <strong>Stream:atan()</strong>
+    </dt>
+    <dd>
+    Get the arc tangent of all samples (in radians)
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.atan">math.atan</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:ceil"></a>
+    <strong>Stream:ceil()</strong>
+    </dt>
+    <dd>
+    Get the smallest integer larger than or equal to all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.ceil">math.ceil</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:cos"></a>
+    <strong>Stream:cos()</strong>
+    </dt>
+    <dd>
+    Get the cosine of all samples (assumed to be in radians)
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.cos">math.cos</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:cosh"></a>
+    <strong>Stream:cosh()</strong>
+    </dt>
+    <dd>
+    Get the hyperbolic cosine of all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.cosh">math.cosh</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:deg"></a>
+    <strong>Stream:deg()</strong>
+    </dt>
+    <dd>
+    Get the angle of all samples (given in radians) in degrees
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.deg">math.deg</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:exp"></a>
+    <strong>Stream:exp()</strong>
+    </dt>
+    <dd>
+    Get the value e^<sup>x</sup> for all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.exp">math.exp</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:floor"></a>
+    <strong>Stream:floor()</strong>
+    </dt>
+    <dd>
+    Get the largest integer smaller than or equal to all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.floor">math.floor</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:log"></a>
+    <strong>Stream:log()</strong>
+    </dt>
+    <dd>
+    Get the natural logarithm of all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.log">math.log</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:log10"></a>
+    <strong>Stream:log10()</strong>
+    </dt>
+    <dd>
+    Get the base-10 logarithm of all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.log10">math.log10</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:rad"></a>
+    <strong>Stream:rad()</strong>
+    </dt>
+    <dd>
+    Get the angle of all samples (given in degrees) in radians
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.rad">math.rad</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:sin"></a>
+    <strong>Stream:sin()</strong>
+    </dt>
+    <dd>
+    Get the sine of all samples (assumed to be in radians).
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.sin">math.sin</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:sinh"></a>
+    <strong>Stream:sinh()</strong>
+    </dt>
+    <dd>
+    Get the hyperbolic sine of all samples.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.sinh">math.sinh</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:sqrt"></a>
+    <strong>Stream:sqrt()</strong>
+    </dt>
+    <dd>
+    Get the square root of all samples.
+ (You can also use the expression x^<sup>0</sup>.5 to compute this value.)
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.sqrt">math.sqrt</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:tan"></a>
+    <strong>Stream:tan()</strong>
+    </dt>
+    <dd>
+    Get the tangent of all samples (assumed to be in radians)
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.tan">math.tan</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:tanh"></a>
+    <strong>Stream:tanh()</strong>
+    </dt>
+    <dd>
+    Get the hyperbolic tangent of all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.tanh">math.tanh</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:min"></a>
+    <strong>Stream:min(v)</strong>
+    </dt>
+    <dd>
+    Returns the minimum value between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.min">math.min</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:max"></a>
+    <strong>Stream:max(v)</strong>
+    </dt>
+    <dd>
+    Returns the maximum value between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.max">math.max</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:bnot"></a>
+    <strong>Stream:bnot()</strong>
+    </dt>
+    <dd>
+    Get the bitwise <strong>not</strong> of all samples
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://bitop.luajit.org/api.html#bnot">bit.bnot</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:bor"></a>
+    <strong>Stream:bor(v)</strong>
+    </dt>
+    <dd>
+    Perform bitwise <strong>or</strong> between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://bitop.luajit.org/api.html#bor">bit.bor</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:band"></a>
+    <strong>Stream:band(v)</strong>
+    </dt>
+    <dd>
+    Perform bitwise <strong>and</strong> between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://bitop.luajit.org/api.html#band">bit.band</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:xor"></a>
+    <strong>Stream:xor(v)</strong>
+    </dt>
+    <dd>
+    Perform bitwise <strong>xor</strong> between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://bitop.luajit.org/api.html#xor">bit.xor</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:lshift"></a>
+    <strong>Stream:lshift(v)</strong>
+    </dt>
+    <dd>
+    Perform bitwise <strong>logical left-shift</strong> between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://bitop.luajit.org/api.html#lshift">bit.lshift</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:rshift"></a>
+    <strong>Stream:rshift(v)</strong>
+    </dt>
+    <dd>
+    Perform bitwise <strong>logical right-shift</strong> between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://bitop.luajit.org/api.html#rshift">bit.rshift</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:arshift"></a>
+    <strong>Stream:arshift(v)</strong>
+    </dt>
+    <dd>
+    Perform bitwise <strong>arithmetic right-shift</strong> between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://bitop.luajit.org/api.html#arshift">bit.arshift</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:rol"></a>
+    <strong>Stream:rol(v)</strong>
+    </dt>
+    <dd>
+    Perform bitwise <strong>left rotation</strong> between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://bitop.luajit.org/api.html#rol">bit.rol</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:ror"></a>
+    <strong>Stream:ror(v)</strong>
+    </dt>
+    <dd>
+    Perform bitwise <strong>right rotation</strong> between two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the right argument to <a href="https://bitop.luajit.org/api.html#ror">bit.ror</a>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream">ZipStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:clip"></a>
+    <strong>Stream:clip([min=-1[, max=+1]])</strong>
+    </dt>
+    <dd>
+    Clip all samples between two values (between [-1,+1] by default).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">min</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the lower bound
+         (<em>default</em> -1)
+        </li>
+        <li><span class="parameter">max</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Serves as the upper bound
+         (<em>default</em> +1)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:scale"></a>
+    <strong>Stream:scale([v1=0], v2)</strong>
+    </dt>
+    <dd>
+    Scale stream with values between [-1,+1] to [lower,upper]
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Delivers the lower value.
+         (<em>default</em> 0)
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Delivers the upper value
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:mix"></a>
+    <strong>Stream:mix(other[, wetness=0.5])</strong>
+    </dt>
+    <dd>
+    Mix two streams
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">other</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+         Other stream to mix in
+        </li>
+        <li><span class="parameter">wetness</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+           Wetness factor between [0,1].
+   This determines the loudness of the other stream.
+         (<em>default</em> 0.5)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:pan"></a>
+    <strong>Stream:pan([location=0])</strong>
+    </dt>
+    <dd>
+    Distribute mono-stream between two stereo channels
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">location</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+           Provides the location (between [0,1]) of the source stream in the resulting stereo stream.
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#MuxStream">MuxStream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:Phasor"></a>
+    <strong>Stream:Phasor([phase=0])</strong>
+    </dt>
+    <dd>
+    Create a ramp between [0,1] with the frequency taken from the source stream.
+ It can also be invoked as a regular function to pass constant frequencies.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">phase</span>
+            <span class="types"><span class="type">number</span></span>
+         The phase between [0,1].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.Phasor(<span class="number">440</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:SawOsc"></a>
+    <strong>Stream:SawOsc([phase=0])</strong>
+    </dt>
+    <dd>
+    Saw tooth wave between [-1,+1] with the frequency taken from the source stream.
+ It can also be invoked as a regular function to pass constant frequencies.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">phase</span>
+            <span class="types"><span class="type">number</span></span>
+         The phase between [0,1].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SawOsc(<span class="number">440</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:SinOsc"></a>
+    <strong>Stream:SinOsc([phase=0])</strong>
+    </dt>
+    <dd>
+    Sinusiod wave between [-1,+1] with the frequency taken from the source stream.
+ It can also be invoked as a regular function to pass constant frequencies.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">phase</span>
+            <span class="types"><span class="type">number</span></span>
+         The phase between [0,1].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:PulseOsc"></a>
+    <strong>Stream:PulseOsc([phase=0])</strong>
+    </dt>
+    <dd>
+    Pulse between [0,1] with the frequency taken from the source stream.
+ It can also be invoked as a regular function to pass constant frequencies.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">phase</span>
+            <span class="types"><span class="type">number</span></span>
+         The phase between [0,1].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.PulseOsc(<span class="number">440</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:SqrOsc"></a>
+    <strong>Stream:SqrOsc([phase=0])</strong>
+    </dt>
+    <dd>
+    Square wave between [-1,+1] with the frequency taken from the source stream.
+ It can also be invoked as a regular function to pass constant frequencies.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">phase</span>
+            <span class="types"><span class="type">number</span></span>
+         The phase between [0,1].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SqrOsc(<span class="number">440</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:TriOsc"></a>
+    <strong>Stream:TriOsc([phase=0])</strong>
+    </dt>
+    <dd>
+    Triangle wave between [-1,+1] with the frequency taken from the source stream.
+ It can also be invoked as a regular function to pass constant frequencies.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">phase</span>
+            <span class="types"><span class="type">number</span></span>
+         The phase between [0,1].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.TriOsc(<span class="number">440</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:crush"></a>
+    <strong>Stream:crush([bits=8])</strong>
+    </dt>
+    <dd>
+    Bit crusher effect.
+ This reduces the bit depth of the source stream.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">bits</span>
+            <span class="types"><span class="type">number</span></span>
+         The resulting streams bit depth.
+         (<em>default</em> 8)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:len"></a>
+    <strong>Stream:len()</strong>
+    </dt>
+    <dd>
+    Get a stream&rsquo;s length in samples.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">int</span></span>
+        Stream length in samples (<a href="https://www.lua.org/manual/5.1/manual.html#pdf-math.huge">math.huge</a> for infinite streams).
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:play"></a>
+    <strong>Stream:play([first_port=1])</strong>
+    </dt>
+    <dd>
+    Send samples to the Jack output ports, ie.  play the stream.
+ This will block and can be interrupted by pressing Ctrl+C (SIGINT).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">first_port</span>
+            <span class="types"><span class="type">int</span></span>
+           First Jack output port to use.
+   The first stream in a multi-channel stream will go to this port,
+   the next one to first_port+1 and so on.
+         (<em>default</em> 1)
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:iter"></a>
+    <strong>Stream:iter()</strong>
+    </dt>
+    <dd>
+    Iterator over each frame generated by the stream for use with for-in statements.
+ This will process samples as fast as possible and may therefore
+ not be well suited to process real-time input.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">fnc</span></span>
+        Iterator function.
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example"><span class="keyword">for</span> f <span class="keyword">in</span> iota(<span class="number">10</span>):iter() <span class="keyword">do</span> <span class="global">print</span>(f[<span class="number">1</span>]) <span class="keyword">end</span></pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:benchmark"></a>
+    <strong>Stream:benchmark()</strong>
+    </dt>
+    <dd>
+    Benchmark stream (time to generate all samples).
+ This does not work for infinite streams.
+ Naturally, this calculates samples as fast as possible
+ and it does not make sense to benchmark streams with real-time input.
+
+
+
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#benchmark">benchmark</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:jbc"></a>
+    <strong>Stream:jbc([out=io.stdout[, all=true]])</strong>
+    </dt>
+    <dd>
+    Dump bytecode for stream (its tick function).
+ See also the undocumented <code>jit.bc</code> module in LuaJIT.
+ This does not return a string, so it can contain color output.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">out</span>
+            <span class="types"><span class="type">file</span></span>
+         File stream to print to (can also be a table of functions).
+         (<em>default</em> io.stdout)
+        </li>
+        <li><span class="parameter">all</span>
+            <span class="types"><span class="type">bool</span></span>
+         Whether to dump all subfunctions as well.
+         (<em>default</em> true)
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:jdump"></a>
+    <strong>Stream:jdump([opt="tbim"[, outfile=io.stdout]])</strong>
+    </dt>
+    <dd>
+    Dump bytecode, traces and machine code of stream (its tick function).
+ See also the undocumented <code>jit.dump</code> module in LuaJIT.
+ This does not return a string, so it can contain color output.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">opt</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         Output flags
+         (<em>default</em> "tbim")
+        </li>
+        <li><span class="parameter">outfile</span>
+            <span class="types"><span class="type">file</span></span>
+         File stream to print to (can also be a table of functions).
+         (<em>default</em> io.stdout)
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:tonumber"></a>
+    <strong>Stream:tonumber()</strong>
+    </dt>
+    <dd>
+    Convert all values to Lua numbers
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:tonumber">tonumber</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:tostring"></a>
+    <strong>Stream:tostring()</strong>
+    </dt>
+    <dd>
+    Convert all values to Lua strings
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:tostring">tostring</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:totable"></a>
+    <strong>Stream:totable()</strong>
+    </dt>
+    <dd>
+    Calculate all values of a stream and return them as Lua arrays/tables.
+ This naturally does not work for infinite streams and the eagerly evaluated
+ stream must not depend on real-time input (MIDI controllers etc).
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+        For multi-channel streams, every channel will be returned in its own return value.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:eval"></a>
+    <strong>Stream:eval()</strong>
+    </dt>
+    <dd>
+    Evaluate stream eagerly.
+ This precalculates all values for non-infinite streams, which may be useful
+ to lower CPU load during real-time playback.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:totable">Stream:totable</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:toplot"></a>
+    <strong>Stream:toplot([rows=25[, cols=80]])</strong>
+    </dt>
+    <dd>
+    Plot stream with numbers between [-1,+1] to ASCII graphics.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">rows</span>
+            <span class="types"><span class="type">int</span></span>
+         Rows of the ASCII diagram.
+         (<em>default</em> 25)
+        </li>
+        <li><span class="parameter">cols</span>
+            <span class="types"><span class="type">int</span></span>
+         Columns of the ASCII diagram.
+         (<em>default</em> 80)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+        ASCII diagram formatted as a string.
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">=Stream.SinOsc(<span class="number">440</span>):sub(<span class="number">1</span>, samplerate/<span class="number">440</span>):toplot()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:pipe"></a>
+    <strong>Stream:pipe(prog[, vbufmode="full"[, vbufsize]])</strong>
+    </dt>
+    <dd>
+    Pipe stream values to external program.
+ This sends one frame per tick on their own line.
+ Every line can contain multiple numbers separated by tabs depending on the number of channels.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">prog</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         The program to launch and receive the stream data.
+        </li>
+        <li><span class="parameter">vbufmode</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         Buffering mode.
+         (<em>default</em> "full")
+        </li>
+        <li><span class="parameter">vbufsize</span>
+            <span class="types"><span class="type">int</span></span>
+         The buffer size.
+         (<em>optional</em>)
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-file:setvbuf">file:setvbuf</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:gnuplot"></a>
+    <strong>Stream:gnuplot([file[, terminal]])</strong>
+    </dt>
+    <dd>
+    Plot stream using <a href="http://www.gnuplot.info/">gnuplot</a>.
+ This is not allowed for infinite streams.
+ Graphics will be displayed inline in Jupyter notebooks and when
+ using the <a href="https://sw.kovidgoyal.net/kitty/">kitty</a> terminal emulator.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">file</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           If specified, render to the file name instead of into a window or GUI.
+   The terminal type is guessed from the file extension.
+         (<em>optional</em>)
+        </li>
+        <li><span class="parameter">terminal</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           If file is given, this specifies the terminal type (file type).
+         (<em>optional</em>)
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:print"></a>
+    <strong>Stream:print([format='%s'])</strong>
+    </dt>
+    <dd>
+    Print values of stream when they change.
+ This is useful to debug slowly or seldom changing streams like those
+ produced by <a href="api.html#MIDIStream">MIDIStream</a> or <a href="api.html#EvdevStream">EvdevStream</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">format</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           A format string to format the samples.
+   This can be used to prefix text or tweak the number formatting.
+         (<em>default</em> '%s')
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="https://www.lua.org/manual/5.1/manual.html#pdf-string.format">string.format</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:instanceof"></a>
+    <strong>Stream:instanceof(other_class)</strong>
+    </dt>
+    <dd>
+    Check whether stream is an instance of a particular class.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">other_class</span>
+            <span class="types"><span class="type">Class</span></span>
+         The other object or class to check against.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">bool</span></span>
+        Whether the stream is an instance of other_class.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#DeriveClass">DeriveClass</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream.__index"></a>
+    <strong>Stream.__index</strong>
+    </dt>
+    <dd>
+    Extract and interpolate samples using the <code>[]</code> operator (metamethod).
+
+
+    <ul>
+        <li><span class="parameter">index</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+           The stream that will generate indices into the base stream.
+   If these numbers have fractions, the output sample will be linearilly interpolated.
+   The maximum number generated by this stream determines the memory requirements
+   of the index operation, so this <em>should</em> never produce very large numbers or
+   unboundedly growing numbers.
+        </li>
+    </ul>
+
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">SndfileStream(<span class="string">"test.wav"</span>)[Stream.SinOsc(<span class="number">0.5</span>):scale(<span class="number">1</span>, sec(<span class="number">5</span>))]</pre></li>
+        <li><pre class="example">iota(<span class="number">2</span>, <span class="number">10</span>)[{<span class="number">2</span>, <span class="number">5</span>, <span class="number">8</span>}]</pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.__tostring"></a>
+    <strong>Stream.__tostring</strong>
+    </dt>
+    <dd>
+    Format stream as string (metamethod).
+ This will only format the first channel and not more than 1024 samples.
+
+
+
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example"><span class="global">tostring</span>(tostream{<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>})</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.add"></a>
+    <strong>Stream.add(v1, v2)</strong>
+    </dt>
+    <dd>
+    Add samples of two streams
+ This can be called as a Stream method or as an operator.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides left values of the add operation.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides right values of the add operation.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">tostream(<span class="number">23</span>):add(<span class="number">5</span>)</pre></li>
+        <li><pre class="example">tostream(<span class="number">23</span>) + <span class="number">5</span></pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.minus"></a>
+    <strong>Stream.minus(v1, v2)</strong>
+    </dt>
+    <dd>
+    Subtract samples of two streams
+ This can be called as a Stream method or as an operator.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides left values of the subtraction operation.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides right values of the subtraction operation.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">tostream(<span class="number">23</span>):minus(<span class="number">5</span>)</pre></li>
+        <li><pre class="example">tostream(<span class="number">23</span>) - <span class="number">5</span></pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.mul"></a>
+    <strong>Stream.mul(v1, v2)</strong>
+    </dt>
+    <dd>
+    Multiply samples of two streams
+ This can be called as a Stream method or as an operator.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides left values of the multiplication operation.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides right values of the multiplication operation.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">tostream(<span class="number">23</span>):mul(<span class="number">5</span>)</pre></li>
+        <li><pre class="example">tostream(<span class="number">23</span>) * <span class="number">5</span></pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:gain"></a>
+    <strong>Stream:gain(volume)</strong>
+    </dt>
+    <dd>
+    Change volume (gain) of stream.
+ This is an alias of <a href="api.html#Stream.mul">Stream.mul</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">volume</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         The volume of the resulting stream.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream.div"></a>
+    <strong>Stream.div(v1, v2)</strong>
+    </dt>
+    <dd>
+    Divide samples of two streams
+ This can be called as a Stream method or as an operator.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides left values of the division operation.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides right values of the division operation.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">tostream(<span class="number">23</span>):div(<span class="number">5</span>)</pre></li>
+        <li><pre class="example">tostream(<span class="number">23</span>) / <span class="number">5</span></pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.mod"></a>
+    <strong>Stream.mod(v1, v2)</strong>
+    </dt>
+    <dd>
+    Calculate modulus of two streams
+ This can be called as a Stream method or as an operator.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides left values of the modulo operation.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides right values of the modulo operation.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">tostream(<span class="number">23</span>):mod(<span class="number">5</span>)</pre></li>
+        <li><pre class="example">tostream(<span class="number">23</span>) % <span class="number">5</span></pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.pow"></a>
+    <strong>Stream.pow(v1, v2)</strong>
+    </dt>
+    <dd>
+    Take one stream to the power of another stream.
+ This can be called as a Stream method or as an operator.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">v1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides left values of the power operation.
+        </li>
+        <li><span class="parameter">v2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Provides right values of the power operation.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <li><pre class="example">tostream(<span class="number">23</span>):pow(<span class="number">5</span>)</pre></li>
+        <li><pre class="example">tostream(<span class="number">23</span>)^<span class="number">5</span></pre></li>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.__unm"></a>
+    <strong>Stream.__unm</strong>
+    </dt>
+    <dd>
+    Negate all samples of stream via <code>-</code> operator (metamethod)
+
+
+
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">-tostream(<span class="number">23</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.__lt"></a>
+    <strong>Stream.__lt</strong>
+    </dt>
+    <dd>
+    Check whether one stream is short than second via <code>&lt;</code> operator (metamethod)
+
+
+    <ul>
+        <li><span class="parameter">op1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+         Left stream
+        </li>
+        <li><span class="parameter">op2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+         Right stream
+        </li>
+    </ul>
+
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">tostream{<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>} &lt; tostream(<span class="number">23</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.__le"></a>
+    <strong>Stream.__le</strong>
+    </dt>
+    <dd>
+    Check whether one stream is short than or equal to second via <code>&lt;=</code> operator (metamethod)
+
+
+    <ul>
+        <li><span class="parameter">op1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+         Left stream
+        </li>
+        <li><span class="parameter">op2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+         Right stream
+        </li>
+    </ul>
+
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">tostream{<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>} &lt;= tostream(<span class="number">23</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.__concat"></a>
+    <strong>Stream.__concat</strong>
+    </dt>
+    <dd>
+    Concatenate two streams via <code>..</code> operator (metamethod)
+
+
+    <ul>
+        <li><span class="parameter">op1</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         First stream
+        </li>
+        <li><span class="parameter">op2</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Second stream
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ConcatStream:new">ConcatStream:new</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">tostream{<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>}..<span class="number">23</span></pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:demux"></a>
+    <strong>Stream:demux(i[, j=i])</strong>
+    </dt>
+    <dd>
+    Extract one or more channels
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">i</span>
+            <span class="types"><span class="type">int</span></span>
+         Id of first channel to extract.
+        </li>
+        <li><span class="parameter">j</span>
+            <span class="types"><span class="type">int</span></span>
+           Id of last channel to extract.
+   If omitted, only one channel (i) is extracted.
+         (<em>default</em> i)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a> or <a class="type" href="api.html#MuxStream">MuxStream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:mux"></a>
+    <strong>Stream:mux(...)</strong>
+    </dt>
+    <dd>
+    Mux several streams with the source stream into a multi-channel stream.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">...</span>
+         Streams to mux
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#MuxStream">MuxStream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#MuxStream:new">MuxStream:new</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):mux(Stream.SinOsc(<span class="number">880</span>)):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream.dupmux"></a>
+    <strong>Stream.dupmux(stream[, channels=2])</strong>
+    </dt>
+    <dd>
+    Duplicate channel in single-channel stream (or suitable scalar value).
+ This can be called as a function or method.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">stream</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Source of single channel data.
+        </li>
+        <li><span class="parameter">channels</span>
+            <span class="types"><span class="type">int</span></span>
+         Number of channels of resulting stream.
+         (<em>default</em> 2)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#MuxStream">MuxStream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#MuxStream:new">MuxStream:new</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:cache"></a>
+    <strong>Stream:cache()</strong>
+    </dt>
+    <dd>
+    Cache this stream value to avoid recalculation within
+ the same tick (ie.  point in time).
+ This may happen when a stream is used multiple times in the same &ldquo;patch&rdquo;.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:rep"></a>
+    <strong>Stream:rep([repeats])</strong>
+    </dt>
+    <dd>
+    Repeat stream.  After the stream runs out of samples, it will start all over again.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">repeats</span>
+            <span class="types"><span class="type">int</span></span>
+         Number of repeats. If missing, the stream will be repeated indefinitely.
+         (<em>optional</em>)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:ravel"></a>
+    <strong>Stream:ravel()</strong>
+    </dt>
+    <dd>
+    Ravel stream.
+ This takes a stream of streams and concatenates them.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">tostream{Stream.SinOsc(<span class="number">440</span>):sub(<span class="number">1</span>, sec()), Stream.SinOsc(<span class="number">880</span>):sub(<span class="number">1</span>, sec())}:ravel():play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:sub"></a>
+    <strong>Stream:sub(i[, j=-1])</strong>
+    </dt>
+    <dd>
+    Get substream (restrict stream in length).
+ This both allows discarding samples at the beginning and restricting the length
+ (even of infinite streams).
+ The semantics of the parameters are similar to <a href="https://www.lua.org/manual/5.1/manual.html#pdf-string.sub">string.sub</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">i</span>
+            <span class="types"><span class="type">int</span></span>
+           Start sample (1 is the first sample).
+   It may be negative to specify positions from the end, whereas -1 refers to the last sample.
+        </li>
+        <li><span class="parameter">j</span>
+            <span class="types"><span class="type">int</span></span>
+           The last sample to include in the resulting stream.
+   It can also be negative to refer to samples at the end of the stream.
+         (<em>default</em> -1)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#sec">sec</a></li>
+         <li><a href="api.html#msec">msec</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):sub(<span class="number">1</span>, sec()):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:map"></a>
+    <strong>Stream:map(fnc)</strong>
+    </dt>
+    <dd>
+    Map function to every sample of stream
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">fnc</span>
+            <span class="types"><span class="type">func</span></span>
+         Function to apply to every sample.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.Phasor(<span class="number">440</span>):mul(<span class="number">2</span>*<span class="global">math</span>.pi):map(<span class="global">math</span>.sin)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:each"></a>
+    <strong>Stream:each()</strong>
+    </dt>
+    <dd>
+    APL synonym of <a href="api.html#Stream:map">Stream:map</a>.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:scan"></a>
+    <strong>Stream:scan(fnc)</strong>
+    </dt>
+    <dd>
+    Scan stream with function.
+ Every function call will receive the last and current sample,
+ so it is possible to &ldquo;accumulate&rdquo; values.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">fnc</span>
+            <span class="types"><span class="type">func</span></span>
+           The function that gets called with the last and current sample to determine the output sample.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">=iota(<span class="number">10</span>):scan(<span class="keyword">function</span>(last, sample) <span class="keyword">return</span> last+sample <span class="keyword">end</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:fold"></a>
+    <strong>Stream:fold(fnc)</strong>
+    </dt>
+    <dd>
+    Fold stream by calling function between all samples.
+ This will pass the current sample as the <em>right</em> argument and the last returned
+ value as the <em>left</em> argument.
+ In other words, it is similar to <code>fnc(fnc(fnc(sample[1], sample[2]), sample[3]), &hellip;)</code>.
+ This naturally cannot work on infinite streams.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">fnc</span>
+            <span class="types"><span class="type">func</span></span>
+         Function that gets called with the <em>left</em> and <em>right</em> arguments.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        The returned stream has either length 0 or 1.
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">=iota(<span class="number">10</span>):fold(<span class="keyword">function</span>(last, sample) <span class="keyword">return</span> last+sample <span class="keyword">end</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:reduce"></a>
+    <strong>Stream:reduce()</strong>
+    </dt>
+    <dd>
+    APL synonym for <a href="api.html#Stream:fold">Stream:fold</a>.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:partition"></a>
+    <strong>Stream:partition(size)</strong>
+    </dt>
+    <dd>
+    Partition stream into arrays of the given size.
+ In other words, this buffers the given number of samples
+ before passing them down in an array.
+ If the stream ends before filling the buffer, the incomplete
+ buffer will be discarded.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">size</span>
+            <span class="types"><span class="type">int</span></span>
+         Size of the chunks, generated by the Stream.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        Stream of chunks
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">=tostream{<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>,<span class="number">5</span>}:partition(<span class="number">2</span>):map(tostream)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:zip"></a>
+    <strong>Stream:zip(fnc, ...)</strong>
+    </dt>
+    <dd>
+    Zip stream with one or more other streams.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">fnc</span>
+            <span class="types"><span class="type">func</span></span>
+         Function to apply between samples.
+        </li>
+        <li><span class="parameter">...</span>
+         Streams to zip with the calling stream.
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ZipStream:new">ZipStream:new</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:delay"></a>
+    <strong>Stream:delay(length)</strong>
+    </dt>
+    <dd>
+    Delay stream by buffering (delay line).
+ This is different to prepending a <code>Stream(0):sub(1, length)</code> in that it can be used to
+ produce feedback lines and delay real-time input.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">length</span>
+            <span class="types"><span class="type">int</span></span>
+         Length of delay line in samples.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:echo"></a>
+    <strong>Stream:echo(length[, wetness=0.5])</strong>
+    </dt>
+    <dd>
+    Add echo to stream.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">length</span>
+            <span class="types"><span class="type">int</span></span>
+         How much to delay the echo.
+        </li>
+        <li><span class="parameter">wetness</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+           Wetness/loadness of the echo (between [0,1]).
+         (<em>default</em> 0.5)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:delay">Stream:delay</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">SndfileStream(<span class="string">"voice.wav"</span>):echo(msec(<span class="number">200</span>)):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:delayx"></a>
+    <strong>Stream:delayx(length[, max_length=sec()])</strong>
+    </dt>
+    <dd>
+    Delay line with variable length.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">length</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Stream generating the echo length.
+        </li>
+        <li><span class="parameter">max_length</span>
+            <span class="types"><span class="type">int</span></span>
+         Maximum length of the delay line.
+         (<em>default</em> sec())
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:delay">Stream:delay</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:echox"></a>
+    <strong>Stream:echox(length[, wetness=0.5[, max_length=sec()]])</strong>
+    </dt>
+    <dd>
+    Echo with variable delay.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">length</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Stream generating the echo delay.
+        </li>
+        <li><span class="parameter">wetness</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+           Wetness/loadness of the echo (between [0,1]).
+         (<em>default</em> 0.5)
+        </li>
+        <li><span class="parameter">max_length</span>
+            <span class="types"><span class="type">int</span></span>
+         Maximum length of the delay line.
+         (<em>default</em> sec())
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:delay">Stream:delay</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:save"></a>
+    <strong>Stream:save(filename[, format])</strong>
+    </dt>
+    <dd>
+    Save stream to sound file.
+ Naturally, this cannot work with infinite streams.
+ Since the stream is processed/written as fast as possible,
+ it is not possible to capture real-time input.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">filename</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         Filename of sound file to write
+        </li>
+        <li><span class="parameter">format</span>
+            <span class="types"><span class="type">SF_FORMAT</span></span>
+           Format of file to write (C type).
+   If omitted, this guessed from the file extension.
+         (<em>optional</em>)
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#SndfileStream">SndfileStream</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:LPF"></a>
+    <strong>Stream:LPF(freq)</strong>
+    </dt>
+    <dd>
+    Apply Low Pass Filter to stream.
+ This is a resonant filter (2nd order Butterworth).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">freq</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Cutoff frequency.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:HPF"></a>
+    <strong>Stream:HPF(freq)</strong>
+    </dt>
+    <dd>
+    Apply High Pass Filter to stream.
+ This is a resonant filter (2nd order Butterworth).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">freq</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Cutoff frequency.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:BPF"></a>
+    <strong>Stream:BPF(freq, quality)</strong>
+    </dt>
+    <dd>
+    Apply Band Pass Filter to stream (2nd order Butterworth).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">freq</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Center frequency.
+        </li>
+        <li><span class="parameter">quality</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+           The quality factor, indirectly proportional to the passband width.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:BRF"></a>
+    <strong>Stream:BRF(freq, quality)</strong>
+    </dt>
+    <dd>
+    Apply Band Reject Filter to stream (2nd order Butterworth).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">freq</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+         Center frequency.
+        </li>
+        <li><span class="parameter">quality</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a>, <span class="type">{number,...}</span> or <span class="type">number</span></span>
+           The quality factor, indirectly proportional to the rejectband width.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Stream:FFT"></a>
+    <strong>Stream:FFT(size[, window_fnc])</strong>
+    </dt>
+    <dd>
+    Analyze frequencies of a potentially infinite realtime stream via FFT.
+ This partitions the source stream into buffers of a given <code>size</code>,
+ optionally maps a window function and eventually applies the forward FFT,
+ resulting in a stream of frequency spectrums (STFT).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">size</span>
+            <span class="types"><span class="type">int</span></span>
+         The size of the FFT buffer. This must be a power of 2.
+        </li>
+        <li><span class="parameter">window_fnc</span>
+            <span class="types"><span class="type">func</span></span>
+           An optional window function to apply to the audio data before FFT conversion.
+         (<em>optional</em>)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+           Stream of frequency spectrums (arrays of complex numbers, ie.
+   C type <code>double complex</code>).
+   These arrays will have size <code>size/2+1</code>.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Hamming">Hamming</a></li>
+         <li><a href="api.html#Hanning">Hanning</a></li>
+         <li><a href="api.html#FFT">FFT</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):FFT(<span class="number">1024</span>):IFFT(<span class="number">1024</span>):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:IFFT"></a>
+    <strong>Stream:IFFT(size)</strong>
+    </dt>
+    <dd>
+    Synthesize audio samples from a stream of frequency spectrums via inverse FFT.
+ This is the inverse of <a href="api.html#Stream:FFT">Stream:FFT</a>.
+ Note that when performing FFT and IFFT on a real-time stream, as is usually done,
+ this will introduce a latency of <code>size/samplerate</code> seconds.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">size</span>
+            <span class="types"><span class="type">int</span></span>
+           The size of the time domain chunks (ie. the same value passed into <a href="api.html#Stream:FFT">Stream:FFT</a>).
+   This will be twice the size of the spectrum arrays minus 2.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        A stream of real-valued audio samples synthesized from the frequency spectrums.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:FFT">Stream:FFT</a></li>
+         <li><a href="api.html#IFFT">IFFT</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):FFT(<span class="number">1024</span>):IFFT(<span class="number">1024</span>):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:DSSI"></a>
+    <strong>Stream:DSSI(file[, input_ports], ...)</strong>
+    </dt>
+    <dd>
+    Apply DSSI or LADSPA plugin to stream.
+ For a DSSI plugin, this must usually be called on a <a href="api.html#MIDIStream">MIDIStream</a>.
+ Otherwise, the object stream will be the plugin&rsquo;s first input stream.
+ You cannot use this method to map the object stream to a symbolic port, though.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">file</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         File name of plugin.
+        </li>
+        <li><span class="parameter">input_ports</span>
+            <span class="types"><span class="type">tab</span></span>
+           A table defining the mapping from
+   LADSPA port names to Streams or constants for audio and control input ports.
+         (<em>optional</em>)
+        </li>
+        <li><span class="parameter">...</span>
+           All additional arguments are added to this table as an array,
+   so port mappings can be specified as a list of arguments as well.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#DSSIStream:new">DSSIStream:new</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:CC"></a>
+    <strong>Stream:CC(control[, channel=0])</strong>
+    </dt>
+    <dd>
+    Filter out last value of a specific MIDI control channel, scaled to [-1,+1].
+ This remembers the last value and is therefore a stream, representing the controller state.
+ It is usually applied on <a href="api.html#MIDIStream">MIDIStream</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">control</span>
+            <span class="types"><span class="type">int</span></span>
+         Controller number between [0,127].
+        </li>
+        <li><span class="parameter">channel</span>
+            <span class="types"><span class="type">int</span></span>
+         MIDI channel between [0,15].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        Stream of numbers between [-1,+1].
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#MIDIStream">MIDIStream</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):gain(MIDIStream:CC(<span class="number">0</span>):scale()):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:CCrel"></a>
+    <strong>Stream:CCrel(control[, channel=0[, resolution=1000]])</strong>
+    </dt>
+    <dd>
+    Filter out last value of a specific relative MIDI control channel.
+ This remembers the last value and is therefore a stream, representing the controller state.
+ It will currently only work if the CC values are two&rsquo;s complement signed values.
+ It is usually applied on <a href="api.html#MIDIStream">MIDIStream</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">control</span>
+            <span class="types"><span class="type">int</span></span>
+         Controller number between [0,127].
+        </li>
+        <li><span class="parameter">channel</span>
+            <span class="types"><span class="type">int</span></span>
+         MIDI channel between [0,15].
+         (<em>default</em> 0)
+        </li>
+        <li><span class="parameter">resolution</span>
+            <span class="types"><span class="type">number</span></span>
+           The device resolution, ie. the number of steps between [-1,+1].
+   The larger this value, the longer it takes to move from the minimum to the maximum position.
+         (<em>default</em> 1000)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        Stream of numbers between [-1,+1].
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#MIDIStream">MIDIStream</a></li>
+         <li><a href="api.html#Stream:evrel">Stream:evrel</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):gain(MIDIStream:CCrel(<span class="number">0</span>):scale()):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:CC14"></a>
+    <strong>Stream:CC14(control[, channel=0])</strong>
+    </dt>
+    <dd>
+    Filter out last value of a specific <strong>14-bit</strong> MIDI control channel, scaled to [-1,+1].
+ This remembers the last value and is therefore a stream, representing the controller state.
+ It is usually applied on <a href="api.html#MIDIStream">MIDIStream</a>.
+ In contrast to <a href="api.html#Stream:CC">Stream:CC</a>, this supports 14-bit controllers where the
+ least-significant byte is sent on controller with offset 0x20.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">control</span>
+            <span class="types"><span class="type">int</span></span>
+         Controller number between [0,127].
+        </li>
+        <li><span class="parameter">channel</span>
+            <span class="types"><span class="type">int</span></span>
+         MIDI channel between [0,15].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        Stream of numbers between [-1,+1].
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#MIDIStream">MIDIStream</a></li>
+         <li><a href="api.html#Stream:CC">Stream:CC</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(<span class="number">440</span>):gain(MIDIStream:CC14(<span class="number">0</span>):scale()):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:mvelocity"></a>
+    <strong>Stream:mvelocity(note[, channel=0])</strong>
+    </dt>
+    <dd>
+    Filter out last value of a MIDI note velocity.
+ This will be a stream of velocity values as long as the given note is on and otherwise 0.
+ It is usually applied on <a href="api.html#MIDIStream">MIDIStream</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">note</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a> or <span class="type">int</span></span>
+         A MIDI note name (eg. &ldquo;A4&rdquo;) or number between [0,127].
+        </li>
+        <li><span class="parameter">channel</span>
+            <span class="types"><span class="type">int</span></span>
+         MIDI channel between [0,15].
+         (<em>default</em> 0)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+           Stream of velocities between [0,127].
+   The note is on as long as the value is not 0.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#MIDIStream">MIDIStream</a></li>
+         <li><a href="api.html#ntom">ntom</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">Stream.SinOsc(ntof(<span class="string">"C4"</span>)):gain(MIDIStream:mvelocity(<span class="string">"C4"</span>) / <span class="number">127</span>):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:mton"></a>
+    <strong>Stream:mton()</strong>
+    </dt>
+    <dd>
+    Convert stream of MIDI note numbers to names.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#mton">mton</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:ntom"></a>
+    <strong>Stream:ntom()</strong>
+    </dt>
+    <dd>
+    Convert stream of MIDI note names to numbers.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ntom">ntom</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:mtof"></a>
+    <strong>Stream:mtof()</strong>
+    </dt>
+    <dd>
+    Convert stream of MIDI note numbers to frequencies.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#mtof">mtof</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:ftom"></a>
+    <strong>Stream:ftom()</strong>
+    </dt>
+    <dd>
+    Convert stream of frequencies to closest MIDI note numbers.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ftom">ftom</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:ntof"></a>
+    <strong>Stream:ntof()</strong>
+    </dt>
+    <dd>
+    Convert stream of MIDI names to frequencies.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#ntof">ntof</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">=tostream{<span class="string">"A4"</span>, <span class="string">"B4"</span>, <span class="string">"C4"</span>}:ntof()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:fton"></a>
+    <strong>Stream:fton()</strong>
+    </dt>
+    <dd>
+    Convert stream of frequencies to closest MIDI note names.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#fton">fton</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "Stream:instrument"></a>
+    <strong>Stream:instrument(on_stream[, off_stream])</strong>
+    </dt>
+    <dd>
+    Tick instrument streams based on an input stream.
+ Once the input stream is unequal to 0, the &ldquo;on&rdquo;-stream is activated.
+ When it changes back to 0 again, the &ldquo;off&rdquo;-stream gets triggered.
+ This allows the construction of instruments with
+ Attack-Sustain and Decay phases based on real-time control signals.
+ Usually, the instrument stream will be applied on <a href="api.html#Stream:mvelocity">Stream:mvelocity</a>, so the two
+ instrument streams can be based on the MIDI velocity (but don&rsquo;t have
+ to be if the velocity is not important).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">on_stream</span>
+            <span class="types"><span class="type">StreamableNumber</span> or <span class="type">func</span></span>
+           Stream to trigger when the input value becomes unequal to 0.
+   If this is a function, it will be called with the input value (usually a MIDI velocity)
+   to generate the &ldquo;on&rdquo;-stream.
+        </li>
+        <li><span class="parameter">off_stream</span>
+            <span class="types"><span class="type">StreamableNumber</span> or <span class="type">func</span></span>
+           Stream to trigger when the input value becomes 0.
+   If this is a function, it will be called with the previous input value (usually a MIDI velocity)
+   to generate the &ldquo;off&rdquo;-stream.
+         (<em>optional</em>)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:mvelocity">Stream:mvelocity</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">MIDIStream:mvelocity(<span class="string">"C4"</span>):instrument(Stream.SinOsc(ntof(<span class="string">"C4"</span>))):play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:evrel"></a>
+    <strong>Stream:evrel([code='REL_X'[, resolution=1000]])</strong>
+    </dt>
+    <dd>
+    Filter Evdev event stream to get the last value of a device with relative positioning (EV_REL).
+ This can be used to retrieve the position of mice for instance.
+ The relative movements are automatically converted to absolute positions given a resolution and
+ the stream &ldquo;holds&rdquo; the last value.
+ It is usally applied on streams returned by <a href="api.html#EvdevStream:new">EvdevStream:new</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">code</span>
+            <span class="types"><span class="type">applause_evdev_rel</span>, <span class="type">int</span> or <a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           This is a C value, integer or string (&lsquo;REL_X&rsquo;, &lsquo;REL_Y&rsquo;&hellip;), specifying the axis to extract.
+   The possible values correspond to the C header <code>input-event-codes.h</code>.
+         (<em>default</em> 'REL_X')
+        </li>
+        <li><span class="parameter">resolution</span>
+            <span class="types"><span class="type">number</span></span>
+           The device resolution, ie. the number of steps between [-1,+1].
+   The larger this value, the longer it takes to move from the minimum to the maximum position.
+         (<em>default</em> 1000)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        Stream of numbers between [-1,+1].
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#EvdevStream:new">EvdevStream:new</a></li>
+         <li><a href="api.html#Stream:scale">Stream:scale</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">EvdevStream(<span class="string">"TrackPoint"</span>):evrel():scale(<span class="number">440</span>,<span class="number">880</span>):SinOsc():play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:evabs"></a>
+    <strong>Stream:evabs([code='ABS_X'], min, max)</strong>
+    </dt>
+    <dd>
+    Filter Evdev event stream to get the last value of a device with absolute positioning (EV_ABS).
+ This can be used to retrieve the position of touchpads for instance.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">code</span>
+            <span class="types"><span class="type">applause_evdev_abs</span>, <span class="type">int</span> or <a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           This is a C value, integer or string (&lsquo;ABS_X&rsquo;, &lsquo;ABS_Y&rsquo;&hellip;), specifying the axis to extract.
+   The possible values correspond to the C header <code>input-event-codes.h</code>.
+         (<em>default</em> 'ABS_X')
+        </li>
+        <li><span class="parameter">min</span>
+            <span class="types"><span class="type">int</span></span>
+           Minimum value (absolute position).
+   This will currently have to be looked up manually using <code>evtest</code>.
+        </li>
+        <li><span class="parameter">max</span>
+            <span class="types"><span class="type">int</span></span>
+           Maximum value (absolute position).
+   This will currently have to be looked up manually using <code>evtest</code>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        Stream of numbers between [-1,1].
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#EvdevStream:new">EvdevStream:new</a></li>
+         <li><a href="api.html#Stream:scale">Stream:scale</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">EvdevStream(<span class="string">"TouchPad"</span>):evabs(<span class="string">'ABS_X'</span>, <span class="number">1232</span>, <span class="number">5712</span>):scale(<span class="number">440</span>,<span class="number">880</span>):SinOsc():play()</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Stream:evkey"></a>
+    <strong>Stream:evkey(key)</strong>
+    </dt>
+    <dd>
+    Filter Evdev event stream to get the last key code (EV_KEY).
+ This can be used to turn PC keyboards into controllers.
+ The key code will be generated as long as the key is pressed,
+ otherwise it will be 0.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">key</span>
+            <span class="types"><span class="type">int</span></span>
+           The key code to extract.
+   This must currently always be an integer, corresponding to the
+   <code>KEY_X</code> constants from <code>input-event-codes.h</code>.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+        Stream of key codes or 0 if the key is not currently pressed.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#EvdevStream:new">EvdevStream:new</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">EvdevStream(<span class="number">10</span>):evkey(<span class="number">16</span>):instrument(Stream.SinOsc(<span class="number">440</span>)):play()</pre>
+    </ul>
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_MuxStream"></a>Class MuxStream </h2>
+
+          <div class="section-description">
+          Class for muxing multiple streams into a multi-channel stream.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "MuxStream:new"></a>
+    <strong>MuxStream:new(...)</strong>
+    </dt>
+    <dd>
+    Create new MuxStream, ie combine multiple streams given as parameters into a single multi-channel stream.
+ The individual parameters can also be scalars and tables converted via <a href="api.html#tostream">tostream</a>.
+ The individual streams can both be a plain single-channel <a href="api.html#Stream">Stream</a>s or MuxStreams with an arbitrary number of channels.
+ The resulting stream&rsquo;s number of channels is the sum of all constituent streams' channels.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">...</span>
+         Streams to mux
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#MuxStream">MuxStream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:mux">Stream:mux</a></li>
+         <li><a href="api.html#tostream">tostream</a></li>
+         <li><a href="api.html#Stream:totable">Stream:totable</a></li>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">MuxStream(Stream.SinOsc(<span class="number">440</span>), Stream.SinOsc(<span class="number">880</span>)):play()</pre>
+    </ul>
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_MuxableStream"></a>Class MuxableStream </h2>
+
+          <div class="section-description">
+          Base class for all streams that operate on multi-channel streams.
+ It handles muxing opaquely, by applying the tick() function on every
+ channel individually.
+ This allows writing multi-channel-capable Streams without complicating
+ things with having to handle frames etc.
+ This class is <strong>abstract</strong>, you are only supposed to derive from it,
+ not to instantiate it directly.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "MuxableStream.sig_first_stream"></a>
+    <strong>MuxableStream.sig_first_stream</strong>
+    </dt>
+    <dd>
+    The first muxable stream in <a href="api.html#MuxableStream:muxableCtor">MuxableStream:muxableCtor</a>&rsquo;s signature.
+ If negative, this refers to an argument at the end of the parameter list.
+ This is 1 (first argument) by default.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "MuxableStream.sig_last_stream"></a>
+    <strong>MuxableStream.sig_last_stream</strong>
+    </dt>
+    <dd>
+    The last muxable stream in <a href="api.html#MuxableStream:muxableCtor">MuxableStream:muxableCtor</a>&rsquo;s signature.
+ If negative, this refers to an argument at the end of the parameter list.
+ This is -1 (last argument) by default.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "MuxableStream:muxableCtor"></a>
+    <strong>MuxableStream:muxableCtor(...)</strong>
+    </dt>
+    <dd>
+    Constructor for classes derived form <a href="api.html#MuxableStream">MuxableStream</a>.
+ This is an <strong>abstract</strong> method, you <strong>must</strong> implement it in your subclass.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">...</span>
+           The arguments passed on from the <a href="api.html#Stream:new">Stream:new</a> method.
+   All arguments between <a href="api.html#MuxableStream.sig_first_stream">MuxableStream.sig_first_stream</a> and
+   <a href="api.html#MuxableStream.sig_last_stream">MuxableStream.sig_last_stream</a> are automatically converted
+   to Streams and demuxed (see <a href="api.html#Stream:demux">Stream:demux</a>), so you will only
+   get passed plain single-channel streams.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types">optional <a class="type" href="api.html#Stream">Stream</a></span>
+           You can optionally return a <a href="api.html#Stream">Stream</a> instance to competely replace the object table.
+   If given, this value will be returned by the <a href="api.html#Stream:new">Stream:new</a> method instead.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:ctor">Stream:ctor</a>
+    </ul>
+
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_ConcatStream"></a>Class ConcatStream </h2>
+
+          <div class="section-description">
+          Class for creating streams consisting of multiple concatenated base streams.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "ConcatStream:new"></a>
+    <strong>ConcatStream:new(...)</strong>
+    </dt>
+    <dd>
+    Create new ConcatStream, ie concatenation of serveral streams.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">...</span>
+           Individual <a href="api.html#Stream">Stream</a>s (or numbers or tables, that can be converted to streams).
+   All but the last one must not be infinite.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#ConcatStream">ConcatStream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream.__concat">Stream.__concat</a>
+    </ul>
+
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_ZipStream"></a>Class ZipStream </h2>
+
+          <div class="section-description">
+          ZipStream combines any number of streams into a single
+ stream using a function.
+ This is the basis of the <code>+</code> and <code>*</code> stream operations.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "ZipStream:new"></a>
+    <strong>ZipStream:new(fnc, ...)</strong>
+    </dt>
+    <dd>
+    Create a ZipStream.
+ This is a stream that combines two or more substituent streams by
+ applying a function between each of their samples.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">fnc</span>
+            <span class="types"><span class="type">func</span></span>
+         Function to apply between samples.
+        </li>
+        <li><span class="parameter">...</span>
+         Streams to combine.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#ZipStream">ZipStream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:zip">Stream:zip</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">ZipStream(<span class="keyword">function</span>(l, r) <span class="keyword">return</span> l+r <span class="keyword">end</span>), Stream.SinOsc(<span class="number">440</span>):gain(<span class="number">0.5</span>), Stream.SinOsc(<span class="number">880</span>):gain(<span class="number">0.5</span>))</pre>
+    </ul>
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_NoiseStream"></a>Class NoiseStream </h2>
+
+          <div class="section-description">
+          A stream generating random values (noise) between [-1,1].
+ Since it does not have parameters, you don&rsquo;t necessarily have to instantiate it.
+ The class table itself is a valid stream object.
+          </div>
+            <h3>Usage:</h3>
+            <pre class="example">NoiseStream:play()</pre>
+    <dl class="function">
+    <dt>
+    <a name = "NoiseStream:new"></a>
+    <strong>NoiseStream:new()</strong>
+    </dt>
+    <dd>
+    Create new NoiseStream
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#NoiseStream">NoiseStream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_PinkNoiseStream"></a>Class PinkNoiseStream </h2>
+
+          <div class="section-description">
+          Stream generating pink noise.
+ Since it does not have parameters, you don&rsquo;t necessarily have to instantiate it.
+ The class table itself is a valid stream object.
+          </div>
+            <h3>Usage:</h3>
+            <pre class="example">PinkNoiseStream:play()</pre>
+    <dl class="function">
+    <dt>
+    <a name = "PinkNoiseStream:new"></a>
+    <strong>PinkNoiseStream:new()</strong>
+    </dt>
+    <dd>
+    Create new NoiseStream
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#PinkNoiseStream">PinkNoiseStream</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_SndfileStream"></a>Class SndfileStream </h2>
+
+          <div class="section-description">
+          Stream for reading a sound file.
+ This can be used with all file types supported by <a href="http://libsndfile.github.io/libsndfile/#features">libsndfile</a>.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "SndfileStream:new"></a>
+    <strong>SndfileStream:new(filename[, samplerate[, channels[, format]]])</strong>
+    </dt>
+    <dd>
+    Create a SndfileStream.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">filename</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         Filename of sound file to read.
+        </li>
+        <li><span class="parameter">samplerate</span>
+            <span class="types"><span class="type">int</span></span>
+           Samplerate of file.
+   This is ignored unless reading files in ffi.C.SF_FORMAT_RAW.
+         (<em>optional</em>)
+        </li>
+        <li><span class="parameter">channels</span>
+            <span class="types"><span class="type">int</span></span>
+           Number of channels in file.
+   This is ignored unless reading files in ffi.C.SF_FORMAT_RAW.
+         (<em>optional</em>)
+        </li>
+        <li><span class="parameter">format</span>
+            <span class="types"><span class="type">SF_FORMAT</span></span>
+           Format of file to read (<a href="http://libsndfile.github.io/libsndfile/api.html">C type</a>).
+   If omitted, this guessed from the file extension.
+         (<em>optional</em>)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#SndfileStream">SndfileStream</a> or <a class="type" href="api.html#MuxStream">MuxStream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:save">Stream:save</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">SndfileStream(<span class="string">"test.wav"</span>):play()</pre>
+    </ul>
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_DSSIStream"></a>Class DSSIStream </h2>
+
+          <div class="section-description">
+          Stream wrapper for external DSSI and LADSPA plugins.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "DSSIStream:new"></a>
+    <strong>DSSIStream:new(file[, midi_event_stream][, input_ports], ...)</strong>
+    </dt>
+    <dd>
+    Create a DSSI or LADSPA stream.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">file</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <code>file</code> is either the full path to a plugin library or a basename
+   looked up in $DSSI_PATH and $LADSPA_PATH.
+   It may be followed by an optional &ldquo;:Label&rdquo; to select a plugin by type
+   from this file (otherwise, the first one is used).
+        </li>
+        <li><span class="parameter">midi_event_stream</span>
+            <span class="types"><a class="type" href="api.html#Stream">Stream</a></span>
+           If the plugin is DSSI, this may be a <a href="api.html#MIDIStream">MIDIStream</a>, but may also be nil.
+   For LADSPA plugins, this argument already specifies the first input port.
+         (<em>optional</em>)
+        </li>
+        <li><span class="parameter">input_ports</span>
+            <span class="types"><span class="type">tab</span></span>
+           A table defining the mapping from
+   LADSPA port names to Streams or constants for audio and control input ports.
+   This host does not make a difference between audio and control ports.
+   A mapping from port Id to Streams (ie. an array of Streams corresponding
+   with the ports) is also allowed.
+   Every plugin input port must either be mapped or have a default value.
+   Constants are handled specially and are faster than streams.
+   Multi-channel input streams do not result in muxing of the DSSIStream,
+   so every input stream must be mono.
+   However, to ease binding the individual channels of a multi-channel
+   stream, they are automatically expanded to consecutive input streams.
+         (<em>optional</em>)
+        </li>
+        <li><span class="parameter">...</span>
+           All additional arguments are added to this table as an array,
+   so port mappings can be specified as a list of arguments as well.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#DSSIStream">DSSIStream</a> or <a class="type" href="api.html#MuxStream">MuxStream</a></span>
+           Multi-channel output plugins are always muxed. But you may use
+   <a href="api.html#Stream:demux">Stream:demux</a> to discard uninteresting output channels.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="api.html#Stream:DSSI">Stream:DSSI</a>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "DSSIStream:getName"></a>
+    <strong>DSSIStream:getName()</strong>
+    </dt>
+    <dd>
+    Get name of DSSI/LADSPA plugin.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+
+    </ol>
+
+
+
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_MIDIStream"></a>Class MIDIStream </h2>
+
+          <div class="section-description">
+          MIDI event stream.
+ Since it does not have parameters, you don&rsquo;t necessarily have to instantiate it.
+ The class table itself is a valid stream object.</p>
+
+<p> MIDI events are 24-bit words with the
+ <a href="https://www.codecademy.com/resources/docs/markdown/tables">following structure</a>:</p>
+
+<p> <table border="1">
+ <tr><th>Bit 23-16<th>15-8<th>7-4<th>3-0
+ <tr><td>Controller value / velocity<td>Controller number / key<td>Command code<td>Channel number
+ </table></p>
+
+<p> MIDI streams can and are usually ticked at the sample rate but will generate 0 words
+ in absence of events.
+          </div>
+            <h3>Usage:</h3>
+            <pre class="example">Stream.SinOsc(<span class="number">440</span>):gain(MIDIStream:CC(<span class="number">0</span>):scale()):play()</pre>
+    <dl class="function">
+    <dt>
+    <a name = "MIDIStream:new"></a>
+    <strong>MIDIStream:new()</strong>
+    </dt>
+    <dd>
+    Create new MIDIStream
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#MIDIStream">MIDIStream</a></span>
+
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:CC">Stream:CC</a></li>
+         <li><a href="api.html#Stream:mvelocity">Stream:mvelocity</a></li>
+    </ul>
+
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_EvdevStream"></a>Class EvdevStream </h2>
+
+          <div class="section-description">
+          Stream of Evdev (HID device) events.
+ This allows using ordinary keyboards, trackpads, trackpoints, mice etc. as
+ real-time controllers.
+ See also <a href="https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/input-event-codes.h">input-event-codes.h</a>
+ for useful constants.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "EvdevStream.list"></a>
+    <strong>EvdevStream.list()</strong>
+    </dt>
+    <dd>
+    List all HID devices on stdout.
+ This is an alternative to <code>evtest</code> and displays node id and device names,
+ that can be used with <a href="api.html#EvdevStream:new">EvdevStream:new</a>.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "EvdevStream:new"></a>
+    <strong>EvdevStream:new(id[, grab=true])</strong>
+    </dt>
+    <dd>
+    Create EvdevStream (stream HID device events).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">id</span>
+            <span class="types"><span class="type">int</span> or <a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           Either an integer referring to the device node (<code>/dev/input/eventX</code>) or
+   a Lua pattern matched against the device names.
+   The first matching device is used.
+        </li>
+        <li><span class="parameter">grab</span>
+            <span class="types"><span class="type">bool</span></span>
+           Whether to &ldquo;grab&rdquo; the device.
+   A &ldquo;grabbed&rdquo; device will get its events delivered exclusively to Applause,
+   so it will not interfer with the operating system
+   (pressed keyboard keys or mouse movement will not cause any trouble).
+   Consequently there can only be one EvdevStream per grabbed device.
+   The device will be &ldquo;ungrabbed&rdquo; once the object is garbage collected.
+         (<em>default</em> true)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="api.html#EvdevStream">EvdevStream</a></span>
+           A stream of C structures, describing the event in detail.
+   Its fields will be 0 if no event ocurred.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <li><a href="api.html#Stream:evrel">Stream:evrel</a></li>
+         <li><a href="api.html#Stream:evabs">Stream:evabs</a></li>
+         <li><a href="api.html#Stream:evkey">Stream:evkey</a></li>
+    </ul>
+
+
+</dd>
+</dl>
+
+
+</div> <!-- id="content" -->
+</div> <!-- id="main" -->
+<div id="about">
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.6</a></i>
+<i style="float:right;">Last updated 2024-05-21 18:48:07 </i>
+</div> <!-- id="about" -->
+</div> <!-- id="container" -->
+</body>
+</html>

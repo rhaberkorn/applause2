@@ -1,0 +1,338 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<head>
+    <title>Reference</title>
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
+</head>
+<body>
+
+<div id="container">
+
+<div id="product">
+	<div id="product_logo"></div>
+	<div id="product_name"><big><b></b></big></div>
+	<div id="product_description"></div>
+</div> <!-- id="product" -->
+
+
+<div id="main">
+
+
+<!-- Menu -->
+
+<div id="navigation">
+<br/>
+<h1>Applause</h1>
+
+
+<h2>Contents</h2>
+<ul>
+<li><a href="#Installation">Installation </a></li>
+<li><a href="#Usage">Usage </a></li>
+<li><a href="#Operating_System_Tweaks">Operating System Tweaks </a></li>
+<li><a href="#Jupyter_Console_and_Notebook">Jupyter Console and Notebook </a></li>
+</ul>
+
+
+<h2>Topics</h2>
+<ul class="">
+  <li><strong>README</strong></li>
+</ul>
+<h2>Modules</h2>
+<ul class="nowrap">
+  <li><a href="../api.html">applause</a></li>
+</ul>
+<h2>Examples</h2>
+<ul class="nowrap">
+  <li><a href="../examples/evdev.lua.html">evdev.lua</a></li>
+  <li><a href="../examples/fft.lua.html">fft.lua</a></li>
+  <li><a href="../examples/shepard.lua.html">shepard.lua</a></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+    <p><a href="https://github.com/rhaberkorn/applause2/releases/tag/nightly"><img src="https://github.com/rhaberkorn/applause2/actions/workflows/nightly.yml/badge.svg" alt="Nightly Builds" /></a></p>
+
+<h1>Applause</h1>
+
+<p>Applause is a <a href="https://luajit.org/">LuaJIT</a>-based real-time audio programming environment
+based on a stream algebra.
+Think of it as APL on lazily evaluated streams of audio samples.
+In &ldquo;Applause&rdquo; there is no distinction between sample and control rate - every
+stream may provide control data at the sample rate.
+Also, there is no distinction between programming language and audio synthesis engine -
+all calculations are performed by JIT-compiled Lua code, which greatly simplifies
+the architecture and possibilities to extend the system by &ldquo;end users&rdquo;.
+On the downside, it requires buffering between the real-time audio thread and the
+synthesis code which manifests in additional latency.
+&ldquo;Applause&rdquo; currently supports the following features:</p>
+
+<ul>
+<li>well known operations from functional and vector-based programming languages</li>
+<li>various oscillators for sinusoidal, sawtooth, square and triangular wave forms</li>
+<li>hull curve stream generators (for instance ADSR curves for instruments)</li>
+<li>white, pink and brown noise generators</li>
+<li>plotting audio samples via ASCII art and Gnuplot</li>
+<li>reading and writing audio files - also in &ldquo;as fast as possible&rdquo; (non-realtime) mode</li>
+<li>infinite impulse response filters (LPF, HPF, BPF, BRF)</li>
+<li>Fast Fourier Transform (FFT and IFFT) - also in real time (STFT)</li>
+<li>external audio plugins via DSSI/LADSPA</li>
+<li>MIDI and HID device support to generate control signals</li>
+<li>CLI, scripting/batch mode</li>
+<li>simple integration into text editors and IDEs</li>
+<li>Jupyter notebook support</li>
+<li>Linux and FreeBSD are supported and the JACK audio daemon is strictly required</li>
+</ul>
+
+
+<p>See also the TODO file for a list of bugs, possible features and improvements.</p>
+
+<p><a name="Installation"></a></p>
+
+<h2>Installation</h2>
+
+<p>The easiest way to install Applause on Linux is to install a
+prebuilt <a href="https://appimage.org/">AppImage</a> from a <a href="https://github.com/rhaberkorn/applause2/releases/tag/nightly">nightly build</a>.
+It should run on any x86_64 Linux system that has the <a href="https://jackaudio.org/">JACK</a>
+daemon (jackd2/jackdmp) installed and running.
+The AppImage supports all three modes of running Applause:</p>
+
+<ol>
+<li><code>./Applause-nightly-glibc2.29-x86_64.AppImage</code> by default launches a Jupyter notebook on HTTP port 8888.
+Additional parameters are passed to jupyter.
+Use the <code>APPLAUSE_OPTS</code> environment variable to pass commandline parameters to Applause itself.</li>
+<li><code>./Applause-nightly-glibc2.29-x86_64.AppImage ilua</code> launches a Jupyter/ILua console in the terminal.
+Additional parameters are passed to ILua.
+Use the <code>APPLAUSE_OPTS</code> environment variable to pass commandline parameters to Applause itself.</li>
+<li><code>./Applause-nightly-glibc2.29-x86_64.AppImage cli</code> launches a plain Applause shell (Lua prompt).
+Additional parameters are directly passed to Applause, but the <code>APPLAUSE_OPTS</code> environment variable
+can also provide parameters.
+This also mode also allows executing scripts, but currently you will have to pass absolute paths.</li>
+</ol>
+
+
+<h3>Building from Source</h3>
+
+<p>You are recommended to manually build and install LuaJIT v2.1
+since distributions usually ship outdated versions:</p>
+
+<pre>
+git clone -b v2.<span class="number">1</span> https://luajit.org/git/luajit.git
+cd luajit
+make
+sudo make install
+</pre>
+
+
+<p>Furthermore, install the following dependencies (Ubuntu):</p>
+
+<pre>
+sudo apt-get install build-essential libreadline-dev libjack-jackd2-dev \
+                     libsndfile1-dev libasound2-dev feedgnuplot
+</pre>
+
+
+<p>On FreeBSD, you will need the following packages/ports:</p>
+
+<pre>
+pkg install gmake readline jackit evdev-proto libsndfile alsa-lib p5-feedgnuplot
+</pre>
+
+
+<p>To compile the project, type:</p>
+
+<pre>
+make
+</pre>
+
+
+<p>Up-to-date documentation is available at the <a href="http://rhaberkorn.github.io/applause2">website</a>.
+In case you want to build it manually, install <a href="https://stevedonovan.github.io/ldoc/">LDoc</a>
+(for instance <code>luarocks install ldoc</code>) and type:</p>
+
+<pre>
+make doc
+</pre>
+
+
+<p>The generated documentation will be generated in the <code>doc/</code> subdirectory.</p>
+
+<p><a name="Usage"></a></p>
+
+<h2>Usage</h2>
+
+<p>Start JACK daemon (for instance via qjackctl).</p>
+
+<pre>
+./applause -o <span class="number">2</span>
+</pre>
+
+
+<p>Example (one channel):</p>
+
+<pre>
+&gt; Stream.SinOsc(<span class="number">440</span>):play()
+</pre>
+
+
+<p>You can also run standalone scripts (batch mode), just like the standard Lua interpreter.</p>
+
+<p><a name="Operating_System_Tweaks"></a></p>
+
+<h2>Operating System Tweaks</h2>
+
+<h3>Linux (Ubuntu)</h3>
+
+<p>In order to run Jack and Applause with real-time scheduling, it should be sufficient to
+add your user to the <code>audio</code> group.</p>
+
+<p>To give regular users access to HID devices, it should suffice to add the current user to
+the <code>input</code> group.</p>
+
+<h3>FreeBSD</h3>
+
+<p>For realtime scheduling, you might have to check out the mac_priority kernel module
+and add your user to the <code>realtime</code> group.</p>
+
+<p>Furthermore, to allow unlimited memory locking on FreeBSD for ordinary users,
+you should add the following entry to <code>/etc/login.conf</code>:</p>
+
+<pre>
+audio:\
+    :memorylocked=unlimited:\
+    :tc=default:
+</pre>
+
+
+<p>Change the login class of your user to <code>audio</code> by running <code>chpass</code>.</p>
+
+<p>You might need to add the current user to the <code>wheel</code> group and
+give read acceess to evdev device nodes by creating <code>/etc/devd.rules</code>:</p>
+
+<pre>
+[localrules=<span class="number">10</span>]
+  add path <span class="string">'input/*'</span> mode <span class="number">0640</span>
+</pre>
+
+
+<h1>Applause Clients (Editor Integration)</h1>
+
+<pre>
+echo -ne <span class="string">"25   \nStream.SinOsc(440):play()"</span> | socat -,ignoreeof TCP:<span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">10000</span>
+</pre>
+
+
+<p>See also <a href="https://github.com/rhaberkorn/applause2/blob/master/client.tes">client.tes</a>
+for a <a href="https://github.com/rhaberkorn/sciteco">SciTECO</a> integration.</p>
+
+<h1>Joysticks and Gamepads</h1>
+
+<p>This is supported by EvdevStream().</p>
+
+<p>Alternatively you can use aseqjoy together with <code>a2jmidid &ndash;export-hw</code>
+to expose them as MIDI events.</p>
+
+<h1>Mice</h1>
+
+<p>This is supported by EvdevStream().</p>
+
+<p>Alternatively you can use <a href="https://github.com/GModal/raton">raton</a> together with <code>a2jmidid &ndash;export-hw</code>
+to expose them as MIDI events.</p>
+
+<h1>Other useful programs</h1>
+
+<ul>
+<li>jack_rec, jack-capture, <a href="https://orouits.github.io/qjackrcd/">QJackRcd</a> or <a href="https://www.audacityteam.org/">Audacity</a> to record sessions</li>
+<li>jack_midi_dump or <a href="https://github.com/surfacepatterns/midisnoop">midisnoop</a> for diplaying MIDI events</li>
+<li><a href="https://jack-keyboard.sourceforge.net/">jack-keyboard</a> for producing MIDI note events</li>
+<li><a href="https://sourceforge.net/projects/midicontrol/">midicontroller</a> for producing MIDI CC events</li>
+<li>MIDI Tracker ???</li>
+<li><a href="https://www.uninformativ.de/git/rtspeccy">rtspeccy</a> for a realtime spectrogram</li>
+<li>evtest to find and test HID devices</li>
+<li>listplugins and analyseplugin to inspect LADSPA plugins</li>
+<li>dssi_list_plugins and dssi_analyse_plugin to inspect DSSI plugins</li>
+</ul>
+
+
+<p><a name="Jupyter_Console_and_Notebook"></a></p>
+
+<h2>Jupyter Console and Notebook</h2>
+
+<p>Applause can be run in <a href="https://jupyter.org/">Jupyter</a> Consoles and even Notebooks thanks to
+<a href="https://github.com/guysv/ilua">ILua</a>.
+For full support of all feautures, you must currently use an unofficial <a href="https://github.com/rhaberkorn/ilua">ILua fork</a>.
+First, install ILua into a Python environment
+(see also this <a href="https://github.com/guysv/ilua/issues/28">ILua ticket</a>):</p>
+
+<pre>
+python3 -m venv env
+. env/bin/activate
+pip install twisted==<span class="number">22.10</span>.<span class="number">0</span> git+https://github.com/rhaberkorn/ilua.git@improvements
+</pre>
+
+
+<p>You can now directly run an Applause Jupyter Console session:</p>
+
+<pre>
+ilua <span class="comment">--lua-interpreter=./applause</span>
+</pre>
+
+
+<p>In order to tweak Applause command line parameters and be independant of the execution directory, use
+the included wrapper script.
+It also allows passing in additional arguments to Applause, e.g.:</p>
+
+<pre>
+APPLAUSE_OPTS=<span class="string">"-o 2"</span> ilua <span class="comment">--lua-interpreter=./ilua-wrapper.sh</span>
+</pre>
+
+
+<p>You can symlink this to <code>lua</code> in the Python environment to make Applause the default
+ILua interpreter in this Python environment:</p>
+
+<pre>
+ln -s $(pwd)/ilua-wrapper.sh env/bin/lua
+</pre>
+
+
+<p>If you would like to launch a Jupyter Notebook (Web UI!), first install the following Pip package:</p>
+
+<pre>
+pip install notebook
+</pre>
+
+
+<p>Now launch a web server and follow the onscreen instructions:</p>
+
+<pre>
+APPLAUSE_OPTS=<span class="string">"-o 2"</span> jupyter notebook <span class="comment">--MultiKernelManager.default_kernel_name=lua</span>
+</pre>
+
+
+<p>This works assuming that you symlinked <code>ilua-wrapper.sh</code> to <code>lua</code> as described above.
+An alternative might be to create a custom Jupyter kernel configuration (kernel.json).</p>
+
+<p>If the browser is not opened automatically on the notebook&rsquo;s URL, you might want to try
+visiting http://localhost:8888/.</p>
+
+<p>Please note the following restrictions/bugs:</p>
+
+<ul>
+<li>You cannot publicly host the Jupyter Notebook as the sound is generated on the host machine.</li>
+<li>The output of some functions like Stream:toplot() is garbled.</li>
+</ul>
+
+
+</div> <!-- id="content" -->
+</div> <!-- id="main" -->
+<div id="about">
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.6</a></i>
+<i style="float:right;">Last updated 2024-05-21 18:48:07 </i>
+</div> <!-- id="about" -->
+</div> <!-- id="container" -->
+</body>
+</html>
